@@ -57,6 +57,7 @@ write_config() {
     {
         echo "dex=$RUNTIME_DIR/payload.dex"
         echo "cache=$CACHE_DIR"
+        echo "agent=$RUNTIME_DIR/libkhoirevanced_agent.so"
         echo "action=inject"
         echo "package=$PACKAGE"
         echo "profile=$PROFILE"
@@ -92,7 +93,11 @@ status() {
     pid=$(main_pid || true)
     [ -n "$pid" ] || { log "$PACKAGE is not running"; return 1; }
     grep -q 'libkhoirevanced_agent.so' "/proc/$pid/maps" 2>/dev/null &&
-        { log "$PACKAGE pid=$pid: agent loaded"; return; }
+        {
+            log "$PACKAGE pid=$pid: agent loaded"
+            [ -r "$CACHE_DIR/agent-status.txt" ] && cat "$CACHE_DIR/agent-status.txt"
+            return
+        }
     log "$PACKAGE pid=$pid: agent not loaded"
     return 1
 }

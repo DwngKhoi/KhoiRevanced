@@ -6,6 +6,7 @@ data class RuntimeConfig(
     val packageName: String,
     val profile: String,
     val cacheDir: String,
+    val agentPath: String,
     val applicationTimeoutMs: Long,
 ) {
     companion object {
@@ -25,6 +26,7 @@ data class RuntimeConfig(
                 packageName = values.getValue("package"),
                 profile = values["profile"] ?: "default",
                 cacheDir = values["cache_dir"] ?: "/data/local/tmp/khoirevanced/cache",
+                agentPath = values.getValue("agent"),
                 applicationTimeoutMs = values["application_timeout_ms"]?.toLong() ?: 15_000L,
             )
         }

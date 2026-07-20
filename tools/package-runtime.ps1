@@ -7,13 +7,23 @@ $sdk = if ($env:ANDROID_SDK_ROOT) { $env:ANDROID_SDK_ROOT } else { Join-Path $en
 $ndk = Join-Path $sdk 'ndk\25.2.9519653'
 if (-not (Test-Path $ndk)) { throw "NDK not found: $ndk" }
 Set-Location $root
-& .\gradlew.bat ":runtime-agent:assemble$Configuration"
+$localProperties = Join-Path $root 'local.properties'
+$escapedSdk = $sdk -replace '\\', '\\'
+$escapedNdk = $ndk -replace '\\', '\\'
+if (-not (Test-Path $localProperties)) {
+    "sdk.dir=$escapedSdk`nndk.dir=$escapedNdk" | Set-Content -NoNewline $localProperties
+} elseif (-not (Select-String -Quiet -Path $localProperties -Pattern '^ndk\.dir=')) {
+    Add-Content -Path $localProperties -Value "`nndk.dir=$escapedNdk"
+}
+& .\gradlew.bat ":runtime-api:assemble$Configuration" ":runtime-agent:assemble$Configuration"
 if ($LASTEXITCODE -ne 0) { throw 'Gradle runtime build failed.' }
 $buildTools = Get-ChildItem (Join-Path $sdk 'build-tools') -Directory | Sort-Object Name -Descending | Select-Object -First 1
 $d8 = Join-Path $buildTools.FullName 'd8.bat'
 $flavor = $Configuration.ToLower()
-$agentJar = Get-ChildItem "$root\runtime-agent\build\intermediates\aar_main_jar\$flavor" -Filter classes.jar -Recurse | Select-Object -First 1
-$apiJar = Get-ChildItem "$root\runtime-api\build\intermediates\aar_main_jar\$flavor" -Filter classes.jar -Recurse | Select-Object -First 1
+$agentJar = Get-ChildItem "$root\runtime-agent\build\intermediates" -Filter classes.jar -Recurse |
+    Where-Object FullName -Match "aar_main_jar\\$flavor" | Select-Object -First 1
+$apiJar = Get-ChildItem "$root\runtime-api\build\intermediates" -Filter classes.jar -Recurse |
+    Where-Object FullName -Match "compile_library_classes_jar\\$flavor" | Select-Object -First 1
 if (-not $agentJar -or -not $apiJar) { throw 'Could not locate runtime classes.jar files.' }
 $out = Join-Path $root 'dist\payload\arm64-v8a'
 New-Item -ItemType Directory -Force $out | Out-Null

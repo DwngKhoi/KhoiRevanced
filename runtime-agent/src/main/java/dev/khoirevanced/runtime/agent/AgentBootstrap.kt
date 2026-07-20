@@ -11,14 +11,26 @@ object AgentBootstrap {
 
     @JvmStatic
     fun start(configPath: String) {
+        var config: RuntimeConfig? = null
         runCatching {
-            val config = RuntimeConfig.parse(File(configPath))
-            val app = waitForApplication(config.applicationTimeoutMs)
-            NativeHookBackend.initialize(config)
+            val parsed = RuntimeConfig.parse(File(configPath))
+            config = parsed
+            // The library was originally loaded by the ptrace injector. Load it
+            // through this DexClassLoader too, so ART associates JNI methods
+            // with the payload's class loader.
+            System.load(parsed.agentPath)
+            val app = waitForApplication(parsed.applicationTimeoutMs)
+            NativeHookBackend.initialize(parsed)
             HookRuntime.install(NativeHookBackend)
-            PatchEntry.start(app, config)
-            Log.i(TAG, "Runtime attached to ${app.packageName}; profile=${config.profile}")
+            PatchEntry.start(app, parsed)
+            RuntimeDiagnostics.record(
+                parsed,
+                state = "ready",
+                detail = "capabilities=${NativeHookBackend.capabilities.joinToString()}"
+            )
+            Log.i(TAG, "Runtime attached to ${app.packageName}; profile=${parsed.profile}")
         }.onFailure { error ->
+            config?.let { RuntimeDiagnostics.record(it, "failed", error.toString()) }
             Log.e(TAG, "Agent bootstrap failed", error)
         }
     }
