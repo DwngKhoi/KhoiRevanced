@@ -3,6 +3,12 @@ package com.dwngkhoi.revanced;
 import android.app.Activity;
 import android.content.Intent;
 import android.content.SharedPreferences;
+import android.content.pm.ShortcutInfo;
+import android.content.pm.ShortcutManager;
+import android.graphics.Bitmap;
+import android.graphics.Canvas;
+import android.graphics.drawable.Drawable;
+import android.graphics.drawable.Icon;
 import android.os.Bundle;
 import android.widget.Button;
 import android.widget.TextView;
@@ -13,6 +19,7 @@ import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
+import java.util.Collections;
 
 /** Root manager. The self-extracting runtime is embedded in this APK's assets. */
 public final class MainActivity extends Activity {
@@ -72,6 +79,41 @@ public final class MainActivity extends Activity {
         ((Button) findViewById(R.id.launch_youtube)).setOnClickListener(v -> showLoadingAndLaunch(YOUTUBE));
         ((Button) findViewById(R.id.launch_music)).setOnClickListener(v -> showLoadingAndLaunch(MUSIC));
         ((Button) findViewById(R.id.launch_photos)).setOnClickListener(v -> showLoadingAndLaunch(PHOTOS));
+        ((Button) findViewById(R.id.shortcut_youtube)).setOnClickListener(v -> requestHomeShortcut(YOUTUBE));
+        ((Button) findViewById(R.id.shortcut_music)).setOnClickListener(v -> requestHomeShortcut(MUSIC));
+        ((Button) findViewById(R.id.shortcut_photos)).setOnClickListener(v -> requestHomeShortcut(PHOTOS));
+    }
+
+    private void requestHomeShortcut(Profile profile) {
+        ShortcutManager shortcuts = getSystemService(ShortcutManager.class);
+        if (shortcuts == null || !shortcuts.isRequestPinShortcutSupported()) return;
+        ShortcutInfo shortcut = new ShortcutInfo.Builder(this, "launch-" + profile.id)
+                .setShortLabel(profile.label)
+                .setLongLabel("KhoiRevanced • " + profile.label)
+                .setIcon(officialAppIcon(profile.packageName))
+                .setIntent(new Intent(this, ShortcutActivity.class)
+                        .setAction("com.dwngkhoi.revanced.SHORTCUT." + profile.id)
+                        .putExtra(EXTRA_PROFILE, profile.id))
+                .build();
+        shortcuts.addDynamicShortcuts(Collections.singletonList(shortcut));
+        shortcuts.requestPinShortcut(shortcut, null);
+    }
+
+    private Icon officialAppIcon(String packageName) {
+        try {
+            Drawable drawable = getPackageManager().getApplicationIcon(packageName);
+            int width = Math.max(108, drawable.getIntrinsicWidth());
+            int height = Math.max(108, drawable.getIntrinsicHeight());
+            Bitmap bitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888);
+            Canvas canvas = new Canvas(bitmap);
+            drawable.setBounds(0, 0, width, height);
+            drawable.draw(canvas);
+            // Use a normal bitmap: launchers apply their own current mask and
+            // preserve the official app icon rather than Manager's icon.
+            return Icon.createWithBitmap(bitmap);
+        } catch (Exception ignored) {
+            return Icon.createWithResource(this, R.drawable.khoirevanced_icon);
+        }
     }
 
     private void showLoadingAndLaunch(Profile profile) {

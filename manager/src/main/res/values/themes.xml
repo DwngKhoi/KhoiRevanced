@@ -6,4 +6,10 @@
         <item name="android:statusBarColor">#FF000000</item>
         <item name="android:windowLightStatusBar">false</item>
     </style>
+    <style name="Theme.KhoiRevanced.Shortcut" parent="android:style/Theme.Material.NoActionBar">
+        <item name="android:windowIsTranslucent">true</item>
+        <item name="android:windowBackground">@android:color/transparent</item>
+        <item name="android:colorAccent">#FF00E5FF</item>
+        <item name="android:windowNoTitle">true</item>
+    </style>
 </resources>
