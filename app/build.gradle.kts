@@ -211,7 +211,13 @@ abstract class GenerateStringsTask @Inject constructor(
                 "resources" {
                     for (inputFile in inputFiles) {
                         if (!inputFile.exists()) continue
-                        val inputXml = XmlSlurper().parse(inputFile)
+                        // Keep resource identifiers stable for upstream patch
+                        // code, but brand every user-facing Morphe string in
+                        // the direct KhoiRevanced distribution.
+                        val brandedXml = inputFile.readText()
+                            .replace("Morphe", "KhoiRevanced")
+                            .replace("morphe.software", "KhoiRevanced")
+                        val inputXml = XmlSlurper().parseText(brandedXml)
                         // Flat structure: direct children of <resources>
                         inputXml.children().forEach {
                             if (it !is NodeChild) return@forEach

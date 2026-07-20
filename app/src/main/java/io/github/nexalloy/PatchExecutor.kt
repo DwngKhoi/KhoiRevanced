@@ -156,6 +156,10 @@ class PatchExecutor(val appContext: Application, val lpparam: LoadPackageParam) 
     private lateinit var patches: Array<Patch>
     private val appliedPatches = mutableSetOf<Patch>()
     private val failedPatches = mutableListOf<Patch>()
+    // Pine's direct ART bridge cannot safely hook the swipe host's
+    // dispatchTouchEvent chain on Android 16. Keep every other upstream patch
+    // active while this one is adapted to the direct runtime.
+    private val directRuntimeDisabledPatches = setOf("Swipe controls")
 
     // cache
     private val moduleRel = BuildConfig.COMMIT_HASH
@@ -209,6 +213,10 @@ class PatchExecutor(val appContext: Application, val lpparam: LoadPackageParam) 
              * @see io.github.nexalloy.activity.AppPatchSettingsActivity.AppPatchSettingsFragment.onCreate
              * */
             val isEnabled = patchPreferences?.getBoolean(hook.name, hook.use) ?: hook.use
+            if (
+                System.getProperty("khoirevanced.direct-runtime") == "true" &&
+                hook.name in directRuntimeDisabledPatches
+            ) return@forEach
             if (!isEnabled) return@forEach // Pref Key
             runCatching { hook.run(this) }.onFailure { err ->
                 XposedBridge.log(err)

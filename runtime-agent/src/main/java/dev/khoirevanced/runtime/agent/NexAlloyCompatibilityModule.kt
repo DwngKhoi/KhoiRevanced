@@ -50,6 +50,7 @@ object NexAlloyCompatibilityModule {
                 isFirstApplication = true
                 classLoader = application.classLoader
             }
+            System.setProperty("khoirevanced.direct-runtime", "true")
             (entry as IXposedHookLoadPackage).handleLoadPackage(loadParam)
             check(System.getProperty("khoirevanced.nexalloy.state") == "patches-applied") {
                 "NexAlloy callback did not complete its patch executor"
