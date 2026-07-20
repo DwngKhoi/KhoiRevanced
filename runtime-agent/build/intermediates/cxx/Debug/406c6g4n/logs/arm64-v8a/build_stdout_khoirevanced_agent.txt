@@ -1,0 +1,3 @@
+ninja: Entering directory `D:\khoirevanced\KhoiRevanced\runtime-agent\.cxx\Debug\406c6g4n\arm64-v8a'
+[1/2] Building CXX object CMakeFiles/khoirevanced_agent.dir/agent.cpp.o
+[2/2] Linking CXX shared library D:\khoirevanced\KhoiRevanced\runtime-agent\build\intermediates\cxx\Debug\406c6g4n\obj\arm64-v8a\libkhoirevanced_agent.so

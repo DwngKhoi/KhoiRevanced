@@ -33,6 +33,8 @@ android {
     minSdk = 27
 }
 
-rootProject.name = "NexAlloy"
+rootProject.name = "KhoiRevanced"
 include(":app")
 include(":stub")
+include(":runtime-api")
+include(":runtime-agent")
