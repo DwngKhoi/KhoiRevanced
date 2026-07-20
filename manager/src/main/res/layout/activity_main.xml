@@ -26,9 +26,12 @@
         android:text="forked from NexAlloy"
         android:textColor="#FFB8B8C8"
         android:textSize="14sp" />
-    <Button android:id="@+id/root_check" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="34dp" android:text="Kiểm tra quyền root" />
-    <Button android:id="@+id/launch_youtube" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Inject và mở YouTube" />
-    <Button android:id="@+id/runtime_status" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Trạng thái runtime" />
+    <Button
+        android:id="@+id/root_check"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="34dp"
+        android:text="Kiểm tra quyền root" />
     <TextView
         android:id="@+id/status"
         android:layout_width="match_parent"
@@ -36,6 +39,7 @@
         android:layout_marginTop="22dp"
         android:background="#FF17151A"
         android:padding="16dp"
+        android:text="Cấp quyền root để hoàn tất thiết lập lần đầu."
         android:textColor="#FFFFFFFF"
         android:textSize="13sp" />
 </LinearLayout>
