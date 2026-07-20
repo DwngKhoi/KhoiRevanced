@@ -65,4 +65,39 @@ Copy-Item $agent.FullName (Join-Path $out 'libkhoirevanced_agent.so') -Force
 Copy-Item (Join-Path $pineRoot 'libpine.so') (Join-Path $out 'libpine.so') -Force
 Copy-Item "$root\controller\inject.sh" "$root\dist\inject.sh" -Force
 Copy-Item "$root\controller\profiles\*" "$root\dist\profiles" -Recurse -Force
+
+# Emit one Android-POSIX shell file for releases. It contains a gzipped copy of
+# the normal bundle and expands it only on the target device; source builds and
+# debugging can still use dist\inject.sh directly.
+$singleFile = Join-Path $root 'dist\KhoiRevanced.sh'
+$archive = Join-Path $root '.out\khoirevanced-runtime.tar.gz'
+Remove-Item -LiteralPath $archive -Force -ErrorAction SilentlyContinue
+& tar.exe -C (Join-Path $root 'dist') -czf $archive inject.sh payload profiles
+if ($LASTEXITCODE -ne 0) { throw 'Could not create single-file runtime archive.' }
+$shellHeader = @'
+#!/system/bin/sh
+# Self-extracting KhoiRevanced runtime bundle. Run through su:
+#   su -c 'sh /data/local/tmp/KhoiRevanced.sh launch youtube'
+set -eu
+
+TAG="KhoiRevanced"
+ROOT="${KHOIREVANCED_HOME:-/data/local/tmp/khoirevanced-runtime}"
+ARCHIVE="$ROOT/.payload.tar.gz"
+MARKER="__KHOIREVANCED_ARCHIVE_BELOW__"
+
+[ "$(id -u)" = 0 ] || { echo "$TAG: run through su -c" >&2; exit 1; }
+mkdir -p "$ROOT"
+line=$(awk -v marker="$MARKER" '$0 == marker { print NR + 1; exit }' "$0")
+[ -n "$line" ] || { echo "$TAG: corrupted self-extracting bundle" >&2; exit 1; }
+tail -n "+$line" "$0" | base64 -d > "$ARCHIVE"
+tar -xzf "$ARCHIVE" -C "$ROOT"
+chmod 0700 "$ROOT/inject.sh"
+exec "$ROOT/inject.sh" "$@"
+__KHOIREVANCED_ARCHIVE_BELOW__
+'@
+$shellHeader = $shellHeader.TrimEnd("`r", "`n") + "`n"
+[System.IO.File]::WriteAllText($singleFile, $shellHeader, [System.Text.UTF8Encoding]::new($false))
+$encodedArchive = [Convert]::ToBase64String([System.IO.File]::ReadAllBytes($archive))
+[System.IO.File]::AppendAllText($singleFile, "$encodedArchive`n", [System.Text.UTF8Encoding]::new($false))
 Write-Host "Runtime bundle: $root\dist"
+Write-Host "Single-file runtime: $singleFile"

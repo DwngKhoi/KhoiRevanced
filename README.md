@@ -7,6 +7,26 @@
   <br>
 </div>
 
+## KhoiRevanced root runtime
+
+KhoiRevanced ships a root-only, direct-injection runtime rather than an
+LSPosed/Xposed module APK. Build the portable payload with:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\tools\package-runtime.ps1
+```
+
+This produces `dist\KhoiRevanced.sh`, a self-extracting Android shell bundle:
+
+```powershell
+adb push .\dist\KhoiRevanced.sh /data/local/tmp/
+adb shell su -c 'sh /data/local/tmp/KhoiRevanced.sh launch youtube'
+```
+
+The runtime contains its injector, `libkhoirevanced_agent.so`, Pine's ART hook
+engine and the Xposed-compatible payload DEX. The NexAlloy patch code is being
+ported behind this compatibility layer without distributing a module APK.
+
 **ChsBuffer's LSPosed module, powered by Morphe, ReVanced, and beyond.**  
 > [!CAUTION]
 > **Migration Notice:** This project has evolved from **ReVancedXposed** to **NexAlloy**. 
