@@ -5,9 +5,6 @@ import android.content.Intent;
 import android.content.SharedPreferences;
 import android.content.pm.ShortcutInfo;
 import android.content.pm.ShortcutManager;
-import android.graphics.Bitmap;
-import android.graphics.Canvas;
-import android.graphics.drawable.Drawable;
 import android.graphics.drawable.Icon;
 import android.os.Bundle;
 import android.widget.Button;
@@ -19,7 +16,7 @@ import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
-import java.util.Collections;
+import java.util.Arrays;
 
 /** Root manager. The self-extracting runtime is embedded in this APK's assets. */
 public final class MainActivity extends Activity {
@@ -76,6 +73,7 @@ public final class MainActivity extends Activity {
 
     private void showDashboard() {
         setContentView(R.layout.activity_dashboard);
+        removeLegacyDynamicShortcuts();
         ((Button) findViewById(R.id.launch_youtube)).setOnClickListener(v -> showLoadingAndLaunch(YOUTUBE));
         ((Button) findViewById(R.id.launch_music)).setOnClickListener(v -> showLoadingAndLaunch(MUSIC));
         ((Button) findViewById(R.id.launch_photos)).setOnClickListener(v -> showLoadingAndLaunch(PHOTOS));
@@ -84,10 +82,20 @@ public final class MainActivity extends Activity {
         ((Button) findViewById(R.id.shortcut_photos)).setOnClickListener(v -> requestHomeShortcut(PHOTOS));
     }
 
+    private void removeLegacyDynamicShortcuts() {
+        ShortcutManager shortcuts = getSystemService(ShortcutManager.class);
+        if (shortcuts != null) shortcuts.removeDynamicShortcuts(Arrays.asList(
+                "launch-youtube", "launch-youtube-music", "launch-google-photos"));
+    }
+
     private void requestHomeShortcut(Profile profile) {
         ShortcutManager shortcuts = getSystemService(ShortcutManager.class);
         if (shortcuts == null || !shortcuts.isRequestPinShortcutSupported()) return;
-        ShortcutInfo shortcut = new ShortcutInfo.Builder(this, "launch-" + profile.id)
+        // A fresh ID means the user may pin more than one shortcut for the
+        // same target. Do not register it as a dynamic shortcut: launchers
+        // reject re-pinning a matching dynamic ID as "already exists".
+        String shortcutId = "launch-" + profile.id + "-" + System.currentTimeMillis();
+        ShortcutInfo shortcut = new ShortcutInfo.Builder(this, shortcutId)
                 .setShortLabel(profile.label)
                 .setLongLabel("KhoiRevanced • " + profile.label)
                 .setIcon(officialAppIcon(profile.packageName))
@@ -95,22 +103,15 @@ public final class MainActivity extends Activity {
                         .setAction("com.dwngkhoi.revanced.SHORTCUT." + profile.id)
                         .putExtra(EXTRA_PROFILE, profile.id))
                 .build();
-        shortcuts.addDynamicShortcuts(Collections.singletonList(shortcut));
         shortcuts.requestPinShortcut(shortcut, null);
     }
 
     private Icon officialAppIcon(String packageName) {
         try {
-            Drawable drawable = getPackageManager().getApplicationIcon(packageName);
-            int width = Math.max(108, drawable.getIntrinsicWidth());
-            int height = Math.max(108, drawable.getIntrinsicHeight());
-            Bitmap bitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888);
-            Canvas canvas = new Canvas(bitmap);
-            drawable.setBounds(0, 0, width, height);
-            drawable.draw(canvas);
-            // Use a normal bitmap: launchers apply their own current mask and
-            // preserve the official app icon rather than Manager's icon.
-            return Icon.createWithBitmap(bitmap);
+            int iconResource = getPackageManager().getApplicationInfo(packageName, 0).icon;
+            // Reference the target package resource directly. The launcher,
+            // not Manager, resolves its current official adaptive icon.
+            return Icon.createWithResource(packageName, iconResource);
         } catch (Exception ignored) {
             return Icon.createWithResource(this, R.drawable.khoirevanced_icon);
         }
