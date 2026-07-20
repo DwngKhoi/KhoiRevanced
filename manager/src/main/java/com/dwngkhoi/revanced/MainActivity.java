@@ -86,6 +86,7 @@ public final class MainActivity extends Activity {
     private void bindProfile(Profile profile, int toggleId) {
         Switch toggle = findViewById(toggleId);
         toggle.setChecked(preferences.getBoolean(profile.id, false));
+        if (toggle.isChecked()) refreshShortcutIcon(profile);
         toggle.setOnCheckedChangeListener((button, enabled) -> {
             preferences.edit().putBoolean(profile.id, enabled).apply();
             if (enabled) requestHomeShortcut(profile);
@@ -96,7 +97,19 @@ public final class MainActivity extends Activity {
     private void requestHomeShortcut(Profile profile) {
         ShortcutManager shortcuts = getSystemService(ShortcutManager.class);
         if (shortcuts == null) return;
-        ShortcutInfo shortcut = new ShortcutInfo.Builder(this, "launch-" + profile.id)
+        ShortcutInfo shortcut = buildShortcut(profile);
+        shortcuts.addDynamicShortcuts(Collections.singletonList(shortcut));
+        if (shortcuts.isRequestPinShortcutSupported()) shortcuts.requestPinShortcut(shortcut, null);
+    }
+
+    private void refreshShortcutIcon(Profile profile) {
+        ShortcutManager shortcuts = getSystemService(ShortcutManager.class);
+        if (shortcuts != null) shortcuts.updateShortcuts(
+                Collections.singletonList(buildShortcut(profile)));
+    }
+
+    private ShortcutInfo buildShortcut(Profile profile) {
+        return new ShortcutInfo.Builder(this, "launch-" + profile.id)
                 .setShortLabel(profile.label)
                 .setLongLabel("Launch " + profile.label + " with KhoiRevanced")
                 .setIcon(iconFor(profile.packageName))
@@ -104,8 +117,6 @@ public final class MainActivity extends Activity {
                         .setAction("com.dwngkhoi.revanced.LAUNCH." + profile.id)
                         .putExtra(EXTRA_PROFILE, profile.id))
                 .build();
-        shortcuts.addDynamicShortcuts(Collections.singletonList(shortcut));
-        if (shortcuts.isRequestPinShortcutSupported()) shortcuts.requestPinShortcut(shortcut, null);
     }
 
     private void removeDynamicShortcut(Profile profile) {
