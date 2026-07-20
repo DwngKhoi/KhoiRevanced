@@ -21,3 +21,8 @@ local.properties
 *.jks
 *.keystore
 signing.properties
+
+# Local Android build output
+**/build/
+**/.cxx/
+/local.properties
