@@ -1,45 +1,16 @@
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:background="#000000"
+    android:background="#05070D"
     android:gravity="center_horizontal"
     android:orientation="vertical"
     android:padding="28dp">
-    <ImageView
-        android:layout_width="112dp"
-        android:layout_height="112dp"
-        android:background="@drawable/icon_round_black"
-        android:contentDescription="KhoiRevanced"
-        android:padding="8dp"
-        android:src="@drawable/khoirevanced_icon" />
-    <TextView
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:layout_marginTop="16dp"
-        android:text="KhoiRevanced"
-        android:textColor="#FFFFFFFF"
-        android:textSize="28sp"
-        android:textStyle="bold" />
-    <TextView
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:text="forked from NexAlloy"
-        android:textColor="#FFB8B8C8"
-        android:textSize="14sp" />
-    <Button
-        android:id="@+id/root_check"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:layout_marginTop="34dp"
-        android:text="Kiểm tra quyền root" />
-    <TextView
-        android:id="@+id/status"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:layout_marginTop="22dp"
-        android:background="#FF17151A"
-        android:padding="16dp"
-        android:text="Cấp quyền root để hoàn tất thiết lập lần đầu."
-        android:textColor="#FFFFFFFF"
-        android:textSize="13sp" />
+    <View android:layout_width="match_parent" android:layout_height="2dp" android:background="#FF00E5FF" />
+    <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="18dp" android:text="// KHOI REVANCED" android:textColor="#FF00E5FF" android:textSize="14sp" android:textStyle="bold" />
+    <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:text="ROOT ACCESS TERMINAL" android:textColor="#FFFFFFFF" android:textSize="27sp" android:textStyle="bold" />
+    <ImageView android:layout_width="116dp" android:layout_height="116dp" android:layout_marginTop="42dp" android:background="@drawable/icon_round_black" android:contentDescription="KhoiRevanced" android:padding="8dp" android:src="@drawable/khoirevanced_icon" />
+    <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginTop="18dp" android:text="FIRST-RUN AUTHORIZATION" android:textColor="#FFFF4FA3" android:textSize="13sp" android:textStyle="bold" />
+    <Button android:id="@+id/root_check" android:layout_width="match_parent" android:layout_height="56dp" android:layout_marginTop="30dp" android:background="@drawable/cyber_button" android:text="GRANT ROOT ACCESS" android:textColor="#FF05070D" android:textStyle="bold" />
+    <TextView android:id="@+id/status" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="18dp" android:background="@drawable/cyber_panel" android:padding="16dp" android:text="Root permission is required once to enable the embedded runtime." android:textColor="#FFBCECF2" android:textSize="13sp" />
+    <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="34dp" android:text="[ LOCAL • ROOT • DIRECT INJECTION ]" android:textColor="#FF65747A" android:textSize="11sp" />
 </LinearLayout>
