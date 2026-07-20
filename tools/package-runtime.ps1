@@ -30,6 +30,12 @@ if ($Rebuild -or -not $existingAgentJar) {
     & .\gradlew.bat ":runtime-agent:assemble$Configuration" --no-daemon
     if ($LASTEXITCODE -ne 0) { throw 'Gradle runtime build failed.' }
 }
+$moduleApk = Join-Path $root "app\build\outputs\apk\$flavor\app-$flavor.apk"
+if ($Rebuild -or -not (Test-Path $moduleApk)) {
+    & .\gradlew.bat ":app:assemble$Configuration" --no-daemon
+    if ($LASTEXITCODE -ne 0) { throw 'Gradle NexAlloy compatibility build failed.' }
+}
+if (-not (Test-Path $moduleApk)) { throw "NexAlloy compatibility APK is missing: $moduleApk" }
 $buildTools = Get-ChildItem (Join-Path $sdk 'build-tools') -Directory | Sort-Object Name -Descending | Select-Object -First 1
 $d8 = Join-Path $buildTools.FullName 'd8.bat'
 $agentJar = Get-ChildItem "$root\runtime-agent\build\intermediates" -Filter classes.jar -Recurse |
@@ -63,6 +69,21 @@ $agent = Get-ChildItem "$root\runtime-agent\build\intermediates\cxx" -Filter lib
 if (-not $agent) { throw 'Could not locate libkhoirevanced_agent.so.' }
 Copy-Item $agent.FullName (Join-Path $out 'libkhoirevanced_agent.so') -Force
 Copy-Item (Join-Path $pineRoot 'libpine.so') (Join-Path $out 'libpine.so') -Force
+# Preserve the complete upstream module as a read-only dexpack.  It is loaded
+# through Pine in-process and is never installed as an APK.
+Copy-Item $moduleApk (Join-Path $out 'nexalloy.dexpack') -Force
+Add-Type -AssemblyName System.IO.Compression.FileSystem
+$apkZip = [System.IO.Compression.ZipFile]::OpenRead($moduleApk)
+try {
+    $dexkitEntry = $apkZip.GetEntry('lib/arm64-v8a/libdexkit.so')
+    if ($null -eq $dexkitEntry) { throw 'NexAlloy dexpack does not contain arm64 DexKit.' }
+    $dexkitOutput = Join-Path $out 'libdexkit.so'
+    $entryStream = $dexkitEntry.Open()
+    try {
+        $fileStream = [System.IO.File]::Create($dexkitOutput)
+        try { $entryStream.CopyTo($fileStream) } finally { $fileStream.Dispose() }
+    } finally { $entryStream.Dispose() }
+} finally { $apkZip.Dispose() }
 Copy-Item "$root\controller\inject.sh" "$root\dist\inject.sh" -Force
 Copy-Item "$root\controller\profiles\*" "$root\dist\profiles" -Recurse -Force
 

@@ -50,6 +50,9 @@ class MainHook : IXposedHookLoadPackage, IXposedHookZygoteInit {
 
             val patches = patchesByPackage[lpparam.packageName] ?: return@inContext
             PatchExecutor(app, lpparam).applyPatches(patches)
+            // Direct-runtime health probe. This is process-local and is read
+            // by KhoiRevanced after Pine dispatches the upstream callback.
+            System.setProperty("khoirevanced.nexalloy.state", "patches-applied")
         }
     }
 
@@ -72,6 +75,18 @@ class MainHook : IXposedHookLoadPackage, IXposedHookZygoteInit {
 }
 
 fun inContext(lpparam: LoadPackageParam, f: (Application) -> Unit) {
+    // KhoiRevanced loads this runtime after the target process has completed
+    // Application.onCreate. Reuse the current Application in that case while
+    // retaining the normal Xposed callback path for module deployments.
+    runCatching {
+        val activityThread = Class.forName("android.app.ActivityThread")
+        activityThread.getDeclaredMethod("currentApplication").invoke(null) as? Application
+    }.getOrNull()?.let { app ->
+        Utils.setContext(app)
+        f(app)
+        return
+    }
+
     val appClazz = XposedHelpers.findClass(lpparam.appInfo.className, lpparam.classLoader)
     XposedBridge.hookMethod(appClazz.getMethod("onCreate"), object : XC_MethodHook() {
         override fun beforeHookedMethod(param: MethodHookParam) {

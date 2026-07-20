@@ -23,11 +23,12 @@ object AgentBootstrap {
             PineHookRuntime.initialize(parsed)
             NativeHookBackend.initialize(parsed)
             HookRuntime.install(NativeHookBackend)
+            NexAlloyCompatibilityModule.load(app, parsed)
             PatchEntry.start(app, parsed)
             RuntimeDiagnostics.record(
                 parsed,
                 state = "ready",
-                detail = "engine=${PineHookRuntime.status}; capabilities=${NativeHookBackend.capabilities.joinToString()}"
+                detail = "engine=${PineHookRuntime.status}; module=${NexAlloyCompatibilityModule.status}; capabilities=${NativeHookBackend.capabilities.joinToString()}"
             )
             Log.i(TAG, "Runtime attached to ${app.packageName}; profile=${parsed.profile}")
         }.onFailure { error ->

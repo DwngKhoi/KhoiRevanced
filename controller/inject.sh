@@ -32,6 +32,8 @@ prepare_payload() {
     [ -f "$PAYLOAD_DIR/khoirevanced-injector" ] || die "missing arm64 injector payload"
     [ -r "$PAYLOAD_DIR/libkhoirevanced_agent.so" ] || die "missing native agent payload"
     [ -r "$PAYLOAD_DIR/libpine.so" ] || die "missing Pine hook-engine payload"
+    [ -r "$PAYLOAD_DIR/nexalloy.dexpack" ] || die "missing NexAlloy compatibility payload"
+    [ -r "$PAYLOAD_DIR/libdexkit.so" ] || die "missing DexKit payload"
     [ -r "$PAYLOAD_DIR/classes.dex" ] || die "missing DEX payload"
     [ -d "$APP_DATA" ] || die "$PACKAGE is not installed for user 0"
     uid=$(stat -c '%u' "$APP_DATA")
@@ -39,14 +41,18 @@ prepare_payload() {
     cp -f "$PAYLOAD_DIR/khoirevanced-injector" "$RUNTIME_DIR/"
     cp -f "$PAYLOAD_DIR/libkhoirevanced_agent.so" "$RUNTIME_DIR/"
     cp -f "$PAYLOAD_DIR/libpine.so" "$RUNTIME_DIR/"
+    cp -f "$PAYLOAD_DIR/nexalloy.dexpack" "$RUNTIME_DIR/"
+    cp -f "$PAYLOAD_DIR/libdexkit.so" "$RUNTIME_DIR/"
     cp -f "$PAYLOAD_DIR/classes.dex" "$RUNTIME_DIR/"
     # ART rejects a DEX owned by the app when it remains writable. Keep runtime
     # payload immutable and root-owned; only cache/run are app-owned.
     chown root:root "$RUNTIME_DIR/khoirevanced-injector" \
         "$RUNTIME_DIR/libkhoirevanced_agent.so" "$RUNTIME_DIR/classes.dex"
     chown root:root "$RUNTIME_DIR/libpine.so"
+    chown root:root "$RUNTIME_DIR/nexalloy.dexpack" "$RUNTIME_DIR/libdexkit.so"
     chmod 0755 "$RUNTIME_DIR/khoirevanced-injector"
-    chmod 0444 "$RUNTIME_DIR/libkhoirevanced_agent.so" "$RUNTIME_DIR/libpine.so" "$RUNTIME_DIR/classes.dex"
+    chmod 0444 "$RUNTIME_DIR/libkhoirevanced_agent.so" "$RUNTIME_DIR/libpine.so" \
+        "$RUNTIME_DIR/libdexkit.so" "$RUNTIME_DIR/nexalloy.dexpack" "$RUNTIME_DIR/classes.dex"
     chown "$uid:$uid" "$RUNTIME_DIR" "$RUN_DIR" "$CACHE_DIR"
     chmod 0700 "$RUNTIME_DIR" "$RUN_DIR" "$CACHE_DIR"
 }
@@ -68,6 +74,7 @@ write_config() {
         echo "dex=$RUNTIME_DIR/classes.dex"
         echo "cache=$CACHE_DIR"
         echo "agent=$RUNTIME_DIR/libkhoirevanced_agent.so"
+        echo "module=$RUNTIME_DIR/nexalloy.dexpack"
         echo "action=inject"
         echo "package=$PACKAGE"
         echo "profile=$PROFILE"

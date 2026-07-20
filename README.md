@@ -24,8 +24,10 @@ adb shell su -c 'sh /data/local/tmp/KhoiRevanced.sh launch youtube'
 ```
 
 The runtime contains its injector, `libkhoirevanced_agent.so`, Pine's ART hook
-engine and the Xposed-compatible payload DEX. The NexAlloy patch code is being
-ported behind this compatibility layer without distributing a module APK.
+engine and the Xposed-compatible payload DEX. It also embeds the upstream
+NexAlloy multidex/runtime-resource payload as `nexalloy.dexpack`, which Pine
+loads directly in the target process; it is never installed as an Android APK
+or LSPosed module.
 
 **ChsBuffer's LSPosed module, powered by Morphe, ReVanced, and beyond.**  
 > [!CAUTION]

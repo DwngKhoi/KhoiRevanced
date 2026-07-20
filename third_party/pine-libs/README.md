@@ -13,3 +13,7 @@ Pine revision can be upgraded without changing injector code.
 
 Pine is licensed under the Anti-996 License 1.0.  See its upstream repository
 for the complete license text and source.
+
+`pine-xposed.jar` additionally includes the KhoiRevanced synchronization fix
+for Pine's `XSharedPreferences` synchronous loader, required when NexAlloy is
+loaded directly after process startup.
