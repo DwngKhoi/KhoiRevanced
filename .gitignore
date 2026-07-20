@@ -18,6 +18,9 @@
 local.properties
 .kotlin
 
+# Developer checkout used to refresh the vendored Pine runtime artifacts.
+/third_party/pine/
+
 *.jks
 *.keystore
 signing.properties

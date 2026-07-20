@@ -20,13 +20,14 @@ object AgentBootstrap {
             // with the payload's class loader.
             System.load(parsed.agentPath)
             val app = waitForApplication(parsed.applicationTimeoutMs)
+            PineHookRuntime.initialize(parsed)
             NativeHookBackend.initialize(parsed)
             HookRuntime.install(NativeHookBackend)
             PatchEntry.start(app, parsed)
             RuntimeDiagnostics.record(
                 parsed,
                 state = "ready",
-                detail = "capabilities=${NativeHookBackend.capabilities.joinToString()}"
+                detail = "engine=${PineHookRuntime.status}; capabilities=${NativeHookBackend.capabilities.joinToString()}"
             )
             Log.i(TAG, "Runtime attached to ${app.packageName}; profile=${parsed.profile}")
         }.onFailure { error ->

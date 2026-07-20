@@ -41,9 +41,15 @@ $kotlinStdlib = Get-ChildItem "$env:USERPROFILE\.gradle\caches\modules-2\files-2
     -Filter 'kotlin-stdlib-*.jar' -Recurse -ErrorAction SilentlyContinue |
     Sort-Object FullName -Descending | Select-Object -First 1
 if (-not $kotlinStdlib) { throw 'Could not locate kotlin-stdlib in the Gradle cache.' }
+$pineRoot = Join-Path $root 'third_party\pine-libs'
+$pineCoreJar = Join-Path $pineRoot 'pine-core.jar'
+$pineXposedJar = Join-Path $pineRoot 'pine-xposed.jar'
+if (-not (Test-Path $pineCoreJar) -or -not (Test-Path $pineXposedJar)) {
+    throw 'Pine compatibility jars are missing from third_party/pine-libs.'
+}
 $out = Join-Path $root 'dist\payload\arm64-v8a'
 New-Item -ItemType Directory -Force $out | Out-Null
-& $d8 '--min-api' '27' '--output' $out $agentJar.FullName $apiJar.FullName $kotlinStdlib.FullName
+& $d8 '--min-api' '27' '--output' $out $agentJar.FullName $apiJar.FullName $kotlinStdlib.FullName $pineCoreJar $pineXposedJar
 if ($LASTEXITCODE -ne 0) { throw 'D8 payload conversion failed.' }
 $toolchain = Join-Path $ndk 'build\cmake\android.toolchain.cmake'
 $nativeBuild = Join-Path $root '.out\injector-arm64'
@@ -56,6 +62,7 @@ Copy-Item (Join-Path $nativeBuild 'khoirevanced-injector') $out -Force
 $agent = Get-ChildItem "$root\runtime-agent\build\intermediates\cxx" -Filter libkhoirevanced_agent.so -Recurse | Where-Object FullName -Match 'arm64-v8a' | Select-Object -First 1
 if (-not $agent) { throw 'Could not locate libkhoirevanced_agent.so.' }
 Copy-Item $agent.FullName (Join-Path $out 'libkhoirevanced_agent.so') -Force
+Copy-Item (Join-Path $pineRoot 'libpine.so') (Join-Path $out 'libpine.so') -Force
 Copy-Item "$root\controller\inject.sh" "$root\dist\inject.sh" -Force
 Copy-Item "$root\controller\profiles\*" "$root\dist\profiles" -Recurse -Force
 Write-Host "Runtime bundle: $root\dist"

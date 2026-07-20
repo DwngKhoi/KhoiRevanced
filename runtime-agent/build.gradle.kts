@@ -34,5 +34,12 @@ android {
 
 dependencies {
     implementation(project(":runtime-api"))
+    // Pine provides the in-process ART hook engine and its Xposed-compatible
+    // Java API.  It is bundled into the standalone DEX by package-runtime.ps1.
+    // Use the Java jars instead of direct AAR dependencies: runtime-agent is
+    // itself packaged as an AAR, while the final standalone DEX is assembled
+    // explicitly by package-runtime.ps1.
+    compileOnly(files("../third_party/pine-libs/pine-core.jar"))
+    compileOnly(files("../third_party/pine-libs/pine-xposed.jar"))
     testImplementation("junit:junit:4.13.2")
 }

@@ -13,6 +13,7 @@ object PatchEntry {
         require(application.packageName == config.packageName) {
             "Config targets ${config.packageName}, process is ${application.packageName}"
         }
+        SettingsProbeOverlay.install(application, config)
         Log.i("KhoiRevanced", "Patch profile ${config.profile} is ready")
         // Phase 2: construct RuntimePatchExecutor and register ported patch sets.
     }

@@ -143,7 +143,14 @@ void bootstrap() {
         "(Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/ClassLoader;)V");
     jstring dex = env->NewStringUTF(dex_path);
     jstring cache = env->NewStringUTF(cache_path);
-    jobject loader = env->NewObject(dex_loader, ctor, dex, cache, nullptr, parent);
+    // All runtime native libraries are placed next to classes.dex.  Supplying
+    // this search path lets the payload class loader resolve libpine.so without
+    // relying on the host APK's native-library directory.
+    const std::string dex_file(dex_path);
+    const size_t slash = dex_file.rfind('/');
+    const std::string native_dir = slash == std::string::npos ? "." : dex_file.substr(0, slash);
+    jstring native_path = env->NewStringUTF(native_dir.c_str());
+    jobject loader = env->NewObject(dex_loader, ctor, dex, cache, native_path, parent);
     if (clear_exception(env, "DexClassLoader construction")) {
         if (attached) vm->DetachCurrentThread();
         return;
