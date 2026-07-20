@@ -75,8 +75,8 @@ val SettingsHook = patch(
     // Add an "About" preference to the top.
     preferences += NonInteractivePreference(
         key = "morphe_settings_screen_00_about",
-        icon = "@drawable/morphe_settings_screen_00_about",
-        iconBold = "@drawable/morphe_settings_screen_00_about_bold",
+        icon = "@drawable/khoirevanced_settings_gear",
+        iconBold = "@drawable/khoirevanced_settings_gear",
         layout = "@layout/preference_with_icon",
         summaryKey = null,
         tag = MorpheAboutPreference::class.java,

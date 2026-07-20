@@ -217,6 +217,10 @@ abstract class GenerateStringsTask @Inject constructor(
                         val brandedXml = inputFile.readText()
                             .replace("Morphe", "KhoiRevanced")
                             .replace("morphe.software", "KhoiRevanced")
+                            .replace(
+                                Regex("(<string[^>]*name=\\\"morphe_settings_title\\\"[^>]*>).*?(</string>)"),
+                                "$1Cài đặt$2"
+                            )
                         val inputXml = XmlSlurper().parseText(brandedXml)
                         // Flat structure: direct children of <resources>
                         inputXml.children().forEach {
