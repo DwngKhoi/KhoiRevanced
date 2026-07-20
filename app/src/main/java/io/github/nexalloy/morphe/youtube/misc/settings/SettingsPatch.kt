@@ -75,8 +75,10 @@ val SettingsHook = patch(
     // Add an "About" preference to the top.
     preferences += NonInteractivePreference(
         key = "morphe_settings_screen_00_about",
-        icon = "@drawable/khoirevanced_settings_gear",
-        iconBold = "@drawable/khoirevanced_settings_gear",
+        // The pink gear belongs to the entry in YouTube's outer settings page.
+        // Keep the original About glyph for this item inside KhoiRevanced.
+        icon = "@drawable/morphe_settings_screen_00_about",
+        iconBold = "@drawable/morphe_settings_screen_00_about_bold",
         layout = "@layout/preference_with_icon",
         summaryKey = null,
         tag = MorpheAboutPreference::class.java,

@@ -202,7 +202,7 @@ class PatchExecutor(val appContext: Application, val lpparam: LoadPackageParam) 
         if (!isCached) {
             cache.clearAll()
             cache.putString("id", id)
-            Utils.showToastLong("NexAlloy is initializing, please wait...")
+            Utils.showToastLong("KhoiRevanced is initializing, please wait...")
         }
     }
 

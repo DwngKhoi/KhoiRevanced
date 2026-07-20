@@ -211,15 +211,13 @@ abstract class GenerateStringsTask @Inject constructor(
                 "resources" {
                     for (inputFile in inputFiles) {
                         if (!inputFile.exists()) continue
-                        // Keep resource identifiers stable for upstream patch
-                        // code, but brand every user-facing Morphe string in
-                        // the direct KhoiRevanced distribution.
+                        // Preserve the upstream Morphe section and its
+                        // copyright notices. Only the entry-point title is
+                        // branded for KhoiRevanced.
                         val brandedXml = inputFile.readText()
-                            .replace("Morphe", "KhoiRevanced")
-                            .replace("morphe.software", "KhoiRevanced")
                             .replace(
                                 Regex("(<string[^>]*name=\\\"morphe_settings_title\\\"[^>]*>).*?(</string>)"),
-                                "$1Cài đặt$2"
+                                "$1KhoiRevanced$2"
                             )
                         val inputXml = XmlSlurper().parseText(brandedXml)
                         // Flat structure: direct children of <resources>
