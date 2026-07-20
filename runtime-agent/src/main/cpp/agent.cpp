@@ -29,12 +29,35 @@ std::string config_path() {
 }
 
 JavaVM* wait_for_vm() {
-    void* art = dlopen("libart.so", RTLD_NOW | RTLD_NOLOAD);
-    if (art == nullptr) art = dlopen("libart.so", RTLD_NOW);
-    if (art == nullptr) return nullptr;
-
-    auto get_vms = reinterpret_cast<GetCreatedJavaVms>(dlsym(art, "JNI_GetCreatedJavaVMs"));
-    if (get_vms == nullptr) return nullptr;
+    // Android versions vary where this JNI entry point is exported. Try the
+    // process global scope first, then both runtime libraries. The handles are
+    // intentionally retained: libnativehelper may provide a forwarding symbol.
+    auto get_vms = reinterpret_cast<GetCreatedJavaVms>(
+        dlsym(RTLD_DEFAULT, "JNI_GetCreatedJavaVMs"));
+    void* native_helper = nullptr;
+    void* art = nullptr;
+    if (get_vms == nullptr) {
+        native_helper = dlopen("libnativehelper.so", RTLD_NOW | RTLD_NOLOAD);
+        if (native_helper == nullptr) native_helper = dlopen("libnativehelper.so", RTLD_NOW);
+        if (native_helper != nullptr) {
+            get_vms = reinterpret_cast<GetCreatedJavaVms>(
+                dlsym(native_helper, "JNI_GetCreatedJavaVMs"));
+        }
+    }
+    if (get_vms == nullptr) {
+        art = dlopen("libart.so", RTLD_NOW | RTLD_NOLOAD);
+        if (art == nullptr) art = dlopen("libart.so", RTLD_NOW);
+        if (art != nullptr) {
+            get_vms = reinterpret_cast<GetCreatedJavaVms>(
+                dlsym(art, "JNI_GetCreatedJavaVMs"));
+        }
+    }
+    if (get_vms == nullptr) {
+        __android_log_print(ANDROID_LOG_ERROR, kTag,
+            "JNI_GetCreatedJavaVMs is not exported (nativehelper=%p art=%p)",
+            native_helper, art);
+        return nullptr;
+    }
 
     for (int attempt = 0; attempt < 600; ++attempt) {
         JavaVM* vm = nullptr;
@@ -47,9 +70,17 @@ JavaVM* wait_for_vm() {
 
 bool clear_exception(JNIEnv* env, const char* stage) {
     if (!env->ExceptionCheck()) return false;
-    __android_log_print(ANDROID_LOG_ERROR, kTag, "JNI exception during %s", stage);
-    env->ExceptionDescribe();
+    jthrowable throwable = env->ExceptionOccurred();
     env->ExceptionClear();
+    jclass throwable_class = env->FindClass("java/lang/Throwable");
+    jmethodID to_string = throwable_class == nullptr ? nullptr :
+        env->GetMethodID(throwable_class, "toString", "()Ljava/lang/String;");
+    jstring description = to_string == nullptr ? nullptr :
+        static_cast<jstring>(env->CallObjectMethod(throwable, to_string));
+    const char* text = description == nullptr ? nullptr : env->GetStringUTFChars(description, nullptr);
+    __android_log_print(ANDROID_LOG_ERROR, kTag, "JNI exception during %s: %s",
+                        stage, text == nullptr ? "<unavailable>" : text);
+    if (text != nullptr) env->ReleaseStringUTFChars(description, text);
     return true;
 }
 

@@ -27,18 +27,25 @@ RUN_DIR="$RUNTIME_DIR/run"
 CACHE_DIR="$RUNTIME_DIR/cache"
 
 prepare_payload() {
-    [ -x "$PAYLOAD_DIR/khoirevanced-injector" ] || die "missing arm64 injector payload"
+    # adb push does not preserve the executable bit. Validate the source file
+    # first; it becomes executable after copying into the app runtime dir.
+    [ -f "$PAYLOAD_DIR/khoirevanced-injector" ] || die "missing arm64 injector payload"
     [ -r "$PAYLOAD_DIR/libkhoirevanced_agent.so" ] || die "missing native agent payload"
-    [ -r "$PAYLOAD_DIR/payload.dex" ] || die "missing DEX payload"
+    [ -r "$PAYLOAD_DIR/classes.dex" ] || die "missing DEX payload"
     [ -d "$APP_DATA" ] || die "$PACKAGE is not installed for user 0"
     uid=$(stat -c '%u' "$APP_DATA")
     mkdir -p "$RUN_DIR" "$CACHE_DIR"
     cp -f "$PAYLOAD_DIR/khoirevanced-injector" "$RUNTIME_DIR/"
     cp -f "$PAYLOAD_DIR/libkhoirevanced_agent.so" "$RUNTIME_DIR/"
-    cp -f "$PAYLOAD_DIR/payload.dex" "$RUNTIME_DIR/"
-    chmod 0700 "$RUNTIME_DIR/khoirevanced-injector"
-    chmod 0600 "$RUNTIME_DIR/libkhoirevanced_agent.so" "$RUNTIME_DIR/payload.dex"
-    chown -R "$uid:$uid" "$RUNTIME_DIR"
+    cp -f "$PAYLOAD_DIR/classes.dex" "$RUNTIME_DIR/"
+    # ART rejects a DEX owned by the app when it remains writable. Keep runtime
+    # payload immutable and root-owned; only cache/run are app-owned.
+    chown root:root "$RUNTIME_DIR/khoirevanced-injector" \
+        "$RUNTIME_DIR/libkhoirevanced_agent.so" "$RUNTIME_DIR/classes.dex"
+    chmod 0755 "$RUNTIME_DIR/khoirevanced-injector"
+    chmod 0444 "$RUNTIME_DIR/libkhoirevanced_agent.so" "$RUNTIME_DIR/classes.dex"
+    chown "$uid:$uid" "$RUNTIME_DIR" "$RUN_DIR" "$CACHE_DIR"
+    chmod 0700 "$RUNTIME_DIR" "$RUN_DIR" "$CACHE_DIR"
 }
 
 main_pid() { pidof "$PACKAGE" 2>/dev/null | awk '{print $1}'; }
@@ -55,7 +62,7 @@ wait_for_pid() {
 write_config() {
     pid=$1
     {
-        echo "dex=$RUNTIME_DIR/payload.dex"
+        echo "dex=$RUNTIME_DIR/classes.dex"
         echo "cache=$CACHE_DIR"
         echo "agent=$RUNTIME_DIR/libkhoirevanced_agent.so"
         echo "action=inject"
