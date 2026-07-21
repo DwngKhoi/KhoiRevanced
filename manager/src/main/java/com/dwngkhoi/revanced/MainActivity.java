@@ -148,7 +148,9 @@ public final class MainActivity extends Activity {
     private void launchProfile(File runtime, Profile profile) {
         String quoted = "'" + runtime.getAbsolutePath().replace("'", "'\\\"'\\\"'") + "'";
         executeRoot("sh " + quoted + " launch " + profile.id, output -> {
-            if (output.contains("agent loaded")) finishAndRemoveTask();
+            if (output.contains("agent loaded")
+                    && output.contains("state=ready")
+                    && output.contains("module=nexalloy-loaded")) finishAndRemoveTask();
             else showRuntimeError(output);
         });
     }

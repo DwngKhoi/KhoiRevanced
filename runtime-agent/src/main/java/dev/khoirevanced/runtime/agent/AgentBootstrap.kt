@@ -24,6 +24,9 @@ object AgentBootstrap {
             NativeHookBackend.initialize(parsed)
             HookRuntime.install(NativeHookBackend)
             NexAlloyCompatibilityModule.load(app, parsed)
+            check(NexAlloyCompatibilityModule.status == "nexalloy-loaded") {
+                "NexAlloy compatibility module did not load: ${NexAlloyCompatibilityModule.status}"
+            }
             PatchEntry.start(app, parsed)
             RuntimeDiagnostics.record(
                 parsed,

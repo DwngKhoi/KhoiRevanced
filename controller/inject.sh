@@ -57,7 +57,18 @@ prepare_payload() {
     chmod 0700 "$RUNTIME_DIR" "$RUN_DIR" "$CACHE_DIR"
 }
 
-main_pid() { pidof "$PACKAGE" 2>/dev/null | awk '{print $1}'; }
+main_pid() {
+    # Apps such as YouTube create multiple package-owned processes.  Never
+    # inject a renderer/service process by accident: select the process whose
+    # cmdline is the package's main process.
+    for candidate in $(pidof "$PACKAGE" 2>/dev/null || true); do
+        process=$(tr '\000' ' ' < "/proc/$candidate/cmdline" 2>/dev/null || true)
+        case "$process" in
+            "$PACKAGE"|"$PACKAGE "*) printf '%s' "$candidate"; return 0 ;;
+        esac
+    done
+    return 1
+}
 wait_for_pid() {
     deadline=$(( $(date +%s) + 20 ))
     while [ "$(date +%s)" -lt "$deadline" ]; do
@@ -105,14 +116,13 @@ launch() {
     [ -n "$activity" ] || die "could not resolve launcher activity for $PACKAGE"
     am start -n "$activity" >/dev/null
     pid=$(wait_for_pid)
-    sleep 1
     write_config "$pid"
     log "injecting launched package=$PACKAGE pid=$pid"
     "$RUNTIME_DIR/khoirevanced-injector" "$pid" "$RUNTIME_DIR/libkhoirevanced_agent.so"
     # The injector reports only that dlopen succeeded.  Wait for its mapped
     # agent and emit the canonical status line the Manager uses as success.
     attempt=0
-    while [ "$attempt" -lt 5 ]; do
+    while [ "$attempt" -lt 15 ]; do
         sleep 1
         if status; then return 0; fi
         attempt=$((attempt + 1))
@@ -123,12 +133,18 @@ launch() {
 status() {
     pid=$(main_pid || true)
     [ -n "$pid" ] || { log "$PACKAGE is not running"; return 1; }
-    grep -q 'libkhoirevanced_agent.so' "/proc/$pid/maps" 2>/dev/null &&
-        {
-            log "$PACKAGE pid=$pid: agent loaded"
-            [ -r "$CACHE_DIR/agent-status.txt" ] && cat "$CACHE_DIR/agent-status.txt"
-            return
-        }
+    grep -q 'libkhoirevanced_agent.so' "/proc/$pid/maps" 2>/dev/null && {
+        log "$PACKAGE pid=$pid: agent loaded"
+        if [ ! -r "$CACHE_DIR/agent-status.txt" ]; then
+            log "$PACKAGE pid=$pid: agent is still starting"
+            return 1
+        fi
+        cat "$CACHE_DIR/agent-status.txt"
+        grep -q '^state=ready$' "$CACHE_DIR/agent-status.txt" &&
+            grep -q 'module=nexalloy-loaded' "$CACHE_DIR/agent-status.txt" && return 0
+        log "$PACKAGE pid=$pid: NexAlloy runtime is not ready"
+        return 1
+    }
     log "$PACKAGE pid=$pid: agent not loaded"
     return 1
 }
