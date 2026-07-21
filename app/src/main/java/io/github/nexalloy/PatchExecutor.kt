@@ -170,7 +170,7 @@ class PatchExecutor(val appContext: Application, val lpparam: LoadPackageParam) 
         DexKitCacheBridge.create("", lpparam.appInfo.sourceDir)
     }
 
-    fun applyPatches(patches: Array<Patch>) {
+    fun applyPatches(patches: Array<Patch>): Boolean {
         this.patches = patches
         val t = measureTimeMillis {
             loadCacheIfValid()
@@ -183,6 +183,7 @@ class PatchExecutor(val appContext: Application, val lpparam: LoadPackageParam) 
             }
         }
         Logger.printDebug { "${lpparam.packageName} handleLoadPackage: ${t}ms" }
+        return failedPatches.isEmpty()
     }
 
     @Suppress("UNCHECKED_CAST")

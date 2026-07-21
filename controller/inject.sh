@@ -140,7 +140,8 @@ status() {
             return 1
         fi
         cat "$CACHE_DIR/agent-status.txt"
-        grep -q '^state=ready$' "$CACHE_DIR/agent-status.txt" &&
+        grep -q "^pid=$pid$" "$CACHE_DIR/agent-status.txt" &&
+            grep -q '^state=ready$' "$CACHE_DIR/agent-status.txt" &&
             grep -q 'module=nexalloy-loaded' "$CACHE_DIR/agent-status.txt" && return 0
         log "$PACKAGE pid=$pid: NexAlloy runtime is not ready"
         return 1

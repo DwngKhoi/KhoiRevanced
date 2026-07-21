@@ -1,6 +1,7 @@
 package dev.khoirevanced.runtime.agent
 
 import android.util.Log
+import android.os.Process
 import java.io.File
 import java.time.Instant
 
@@ -14,6 +15,7 @@ object RuntimeDiagnostics {
             output.parentFile?.mkdirs()
             output.writeText(
                 "timestamp=${Instant.now()}\n" +
+                    "pid=${Process.myPid()}\n" +
                     "state=$state\n" +
                     "package=${config.packageName}\n" +
                     "profile=${config.profile}\n" +

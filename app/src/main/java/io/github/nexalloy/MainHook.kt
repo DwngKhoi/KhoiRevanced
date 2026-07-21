@@ -49,10 +49,13 @@ class MainHook : IXposedHookLoadPackage, IXposedHookZygoteInit {
             }
 
             val patches = patchesByPackage[lpparam.packageName] ?: return@inContext
-            PatchExecutor(app, lpparam).applyPatches(patches)
+            val patchesApplied = PatchExecutor(app, lpparam).applyPatches(patches)
             // Direct-runtime health probe. This is process-local and is read
             // by KhoiRevanced after Pine dispatches the upstream callback.
-            System.setProperty("khoirevanced.nexalloy.state", "patches-applied")
+            System.setProperty(
+                "khoirevanced.nexalloy.state",
+                if (patchesApplied) "patches-applied" else "patches-failed"
+            )
         }
     }
 
