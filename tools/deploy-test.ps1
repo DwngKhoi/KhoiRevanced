@@ -1,6 +1,6 @@
 [CmdletBinding()]
 param(
-    [ValidateSet('youtube', 'youtube-music')]
+    [ValidateSet('youtube', 'youtube-music', 'google-photos')]
     [string]$Profile = 'youtube',
     [switch]$Watch,
     [switch]$SingleFile
