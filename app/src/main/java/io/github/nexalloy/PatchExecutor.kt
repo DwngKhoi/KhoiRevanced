@@ -157,9 +157,17 @@ class PatchExecutor(val appContext: Application, val lpparam: LoadPackageParam) 
     private val appliedPatches = mutableSetOf<Patch>()
     private val failedPatches = mutableListOf<Patch>()
     // Pine's direct ART bridge cannot safely hook the swipe host's
-    // dispatchTouchEvent chain on Android 16. Keep every other upstream patch
-    // active while this one is adapted to the direct runtime.
-    private val directRuntimeDisabledPatches = setOf("Swipe controls")
+    // dispatchTouchEvent chain on Android 16. The current YouTube navigation
+    // and layout filters also hook the transient `You` tab views differently
+    // from a normal Zygote module; that can hide the watch-history shelf.
+    // Keep the media, ad, SponsorBlock and playback patches active while this
+    // narrow UI group is adapted to the direct runtime.
+    private val directRuntimeDisabledPatches = setOf(
+        "Swipe controls",
+        "Navigation bar",
+        "Hide layout components",
+        "Hide Shorts components",
+    )
 
     // cache
     private val moduleRel = BuildConfig.COMMIT_HASH

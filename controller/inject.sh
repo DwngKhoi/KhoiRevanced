@@ -98,12 +98,26 @@ inject() {
 launch() {
     prepare_payload
     am force-stop "$PACKAGE"
-    monkey -p "$PACKAGE" 1 >/dev/null
+    # Start the package's resolved launcher Activity directly.  `monkey -p`
+    # is intended for test-event streams and can make OEM launchers briefly
+    # recalculate orientation while the manager is in the foreground.
+    activity=$(cmd package resolve-activity --brief "$PACKAGE" 2>/dev/null | tail -n 1)
+    [ -n "$activity" ] || die "could not resolve launcher activity for $PACKAGE"
+    am start -n "$activity" >/dev/null
     pid=$(wait_for_pid)
     sleep 1
     write_config "$pid"
     log "injecting launched package=$PACKAGE pid=$pid"
     "$RUNTIME_DIR/khoirevanced-injector" "$pid" "$RUNTIME_DIR/libkhoirevanced_agent.so"
+    # The injector reports only that dlopen succeeded.  Wait for its mapped
+    # agent and emit the canonical status line the Manager uses as success.
+    attempt=0
+    while [ "$attempt" -lt 5 ]; do
+        sleep 1
+        if status; then return 0; fi
+        attempt=$((attempt + 1))
+    done
+    die "$PACKAGE agent did not become ready"
 }
 
 status() {
