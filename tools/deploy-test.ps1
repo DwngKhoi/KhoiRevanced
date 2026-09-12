@@ -17,7 +17,10 @@ $device = (adb devices | Select-String "`tdevice$" | Select-Object -First 1)
 if (-not $device) { throw 'No authorized Android device is connected through adb.' }
 
 $target = '/data/local/tmp/khoirevanced-test'
-adb shell "rm -rf $target"
+# A previous root launch can leave this directory inaccessible to the adb
+# shell user. Remove it through root so a test never mixes new files with a
+# stale payload from an older build.
+adb shell "su -c 'rm -rf $target'"
 if ($SingleFile) {
     $single = Join-Path $dist 'KhoiRevanced.sh'
     if (-not (Test-Path $single)) { throw 'Missing single-file bundle. Run .\tools\package-runtime.ps1 first.' }

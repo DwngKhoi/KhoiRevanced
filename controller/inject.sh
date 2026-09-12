@@ -70,11 +70,15 @@ main_pid() {
     return 1
 }
 wait_for_pid() {
-    deadline=$(( $(date +%s) + 20 ))
-    while [ "$(date +%s)" -lt "$deadline" ]; do
+    # Poll fast enough to attach before the launcher Activity inflates its
+    # player hierarchy. A one-second poll lets most of YouTube finish startup,
+    # which is too late for hooks designed for zygote-time installation.
+    attempt=0
+    while [ "$attempt" -lt 400 ]; do
         pid=$(main_pid || true)
         [ -n "$pid" ] && { printf '%s' "$pid"; return; }
-        sleep 1
+        attempt=$((attempt + 1))
+        sleep 0.05
     done
     die "timed out waiting for $PACKAGE"
 }
@@ -107,14 +111,20 @@ inject() {
 }
 
 launch() {
-    prepare_payload
     am force-stop "$PACKAGE"
+    # Never reuse an ART/DexClassLoader cache from an older embedded payload.
+    # This also removes stale hook status and makes Manager launches identical
+    # to the clean ADB deployment path.
+    rm -rf "$RUNTIME_DIR"
+    prepare_payload
     # Start the package's resolved launcher Activity directly.  `monkey -p`
     # is intended for test-event streams and can make OEM launchers briefly
     # recalculate orientation while the manager is in the foreground.
     activity=$(cmd package resolve-activity --brief "$PACKAGE" 2>/dev/null | tail -n 1)
     [ -n "$activity" ] || die "could not resolve launcher activity for $PACKAGE"
-    am start -n "$activity" >/dev/null
+    # Do not wait for ActivityManager's command client to return before looking
+    # for the zygote child. The agent itself waits for Application creation.
+    am start -n "$activity" >/dev/null 2>&1 &
     pid=$(wait_for_pid)
     write_config "$pid"
     log "injecting launched package=$PACKAGE pid=$pid"

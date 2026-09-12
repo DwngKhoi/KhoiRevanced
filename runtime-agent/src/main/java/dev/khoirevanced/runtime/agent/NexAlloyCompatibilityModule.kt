@@ -17,6 +17,7 @@ import java.io.File
  */
 object NexAlloyCompatibilityModule {
     private const val TAG = "KhoiRevanced"
+    private const val LOAD_STATE_PROPERTY = "khoirevanced.nexalloy.load-state"
 
     @Volatile
     var status: String = "not-requested"
@@ -24,6 +25,18 @@ object NexAlloyCompatibilityModule {
 
     fun load(application: Application, config: RuntimeConfig) {
         val modulePath = config.modulePath ?: return
+        // System properties and their monitor are shared across class loaders.
+        // This prevents a second inject/watch request from installing another
+        // complete set of Pine callbacks into the same live app process.
+        synchronized(System.getProperties()) {
+            when (System.getProperty(LOAD_STATE_PROPERTY)) {
+                "loading", "loaded" -> {
+                    status = "nexalloy-loaded"
+                    return
+                }
+            }
+            System.setProperty(LOAD_STATE_PROPERTY, "loading")
+        }
         runCatching {
             val module = File(modulePath)
             require(module.isFile) { "NexAlloy dexpack is missing: $module" }
@@ -56,9 +69,11 @@ object NexAlloyCompatibilityModule {
                 "NexAlloy callback did not complete its patch executor"
             }
         }.onSuccess {
+            System.setProperty(LOAD_STATE_PROPERTY, "loaded")
             status = "nexalloy-loaded"
             Log.i(TAG, "NexAlloy compatibility patch set loaded")
         }.onFailure { error ->
+            System.clearProperty(LOAD_STATE_PROPERTY)
             status = "nexalloy-failed:${error.javaClass.simpleName}"
             Log.e(TAG, "NexAlloy compatibility patch set failed", error)
         }

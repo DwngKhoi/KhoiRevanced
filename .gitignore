@@ -29,3 +29,5 @@ signing.properties
 **/build/
 **/.cxx/
 /local.properties
+
+/out/

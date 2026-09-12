@@ -124,11 +124,38 @@ void bootstrap() {
     fclose(fp);
 
     jclass activity_thread = env->FindClass("android/app/ActivityThread");
+    if (clear_exception(env, "ActivityThread lookup") || activity_thread == nullptr) {
+        log_error("ActivityThread is unavailable");
+        if (attached) vm->DetachCurrentThread();
+        return;
+    }
     jmethodID current_app = env->GetStaticMethodID(
         activity_thread, "currentApplication", "()Landroid/app/Application;");
-    jobject app = env->CallStaticObjectMethod(activity_thread, current_app);
-    if (clear_exception(env, "ActivityThread.currentApplication") || app == nullptr) {
-        log_error("Application is not ready; inject after process initialization");
+    if (clear_exception(env, "ActivityThread.currentApplication lookup") ||
+        current_app == nullptr) {
+        log_error("ActivityThread.currentApplication is unavailable");
+        if (attached) vm->DetachCurrentThread();
+        return;
+    }
+
+    // The controller deliberately attaches as soon as the zygote child exists
+    // so lifecycle-sensitive hooks are installed before the first Activity is
+    // inflated. At that point the VM can already exist while the Application
+    // has not been published yet. Poll here instead of aborting the bootstrap;
+    // otherwise a fast Manager launch randomly reports an injected library but
+    // never loads the compatibility patch set.
+    jobject app = nullptr;
+    for (int attempt = 0; attempt < 600 && app == nullptr; ++attempt) {
+        app = env->CallStaticObjectMethod(activity_thread, current_app);
+        if (clear_exception(env, "ActivityThread.currentApplication")) {
+            app = nullptr;
+        }
+        if (app == nullptr) {
+            std::this_thread::sleep_for(std::chrono::milliseconds(25));
+        }
+    }
+    if (app == nullptr) {
+        log_error("Application was not created within 15000ms");
         if (attached) vm->DetachCurrentThread();
         return;
     }

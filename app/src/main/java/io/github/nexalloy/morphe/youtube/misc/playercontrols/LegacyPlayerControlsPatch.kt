@@ -14,7 +14,8 @@ import io.github.nexalloy.PatchExecutor
 import io.github.nexalloy.morphe.Fingerprint
 import io.github.nexalloy.morphe.LiteralFilter
 import io.github.nexalloy.morphe.shared.misc.settings.preference.SwitchPreference
-import io.github.nexalloy.morphe.shared.misc.litho.filter.featureFlagCheck
+import io.github.nexalloy.morphe.shared.misc.litho.filter.isDirectRuntime
+import io.github.nexalloy.morphe.shared.misc.litho.filter.transformBooleanFeatureFlag
 import io.github.nexalloy.morphe.youtube.misc.playservice.VersionCheck
 import io.github.nexalloy.morphe.youtube.misc.playservice.is_20_28_or_greater
 import io.github.nexalloy.morphe.youtube.misc.playservice.is_20_30_or_greater
@@ -197,34 +198,52 @@ private fun PatchExecutor.initInjectVisibilityCheckCall() {
         }
     }
 
-    // Hook the fullscreen close button. Used to fix visibility
-    // when seeking and other situations.
-    OverlayViewInflateFingerprint.hookMethod(scopedHook(DexMethod("Landroid/view/View;->findViewById(I)Landroid/view/View;").toMember()) {
-        val fullscreenButtonId = fullscreen_button_id
-        after {
-            if (it.args[0] == fullscreenButtonId) {
-                LegacyPlayerControlsPatch.setFullscreenCloseButton(it.result as ImageView)
+    if (isDirectRuntime()) {
+        // Pine on ART 16 cannot reliably execute an original hooked method when that
+        // method immediately enters another Pine bridge. Resolve the fullscreen button
+        // after the outer initializer returns instead of nesting a View.findViewById hook.
+        OverlayViewInflateFingerprint.hookMethod {
+            after { param ->
+                val root = param.args[0] as? View ?: return@after
+                val fullscreenButton =
+                    root.findViewById<ImageView>(fullscreen_button_id) ?: return@after
+                LegacyPlayerControlsPatch.setFullscreenCloseButton(fullscreenButton)
             }
         }
-    })
 
-    //
-    MotionEventFingerprint.hookMethod(scopedHook(DexMethod("Landroid/view/View;->setTranslationY(F)V").toMethod()) {
-        after {
-            // FIXME Animation lags behind
-            bottomControls.forEach { it.setVisibilityNegatedImmediate() }
-//            Logger.printDebug { "setVisibilityNegatedImmediate()" }
+        // The scoped upstream hook only uses setTranslationY as a signal that the
+        // MotionEvent handler finished moving the controls. Running the callback once
+        // after the outer handler has the same final state and avoids a nested bridge.
+        MotionEventFingerprint.hookMethod {
+            after {
+                bottomControls.forEach { it.setVisibilityNegatedImmediate() }
+            }
         }
-    })
+    } else {
+        // Hook the fullscreen close button. Used to fix visibility
+        // when seeking and other situations.
+        OverlayViewInflateFingerprint.hookMethod(scopedHook(DexMethod("Landroid/view/View;->findViewById(I)Landroid/view/View;").toMember()) {
+            val fullscreenButtonId = fullscreen_button_id
+            after {
+                if (it.args[0] == fullscreenButtonId) {
+                    LegacyPlayerControlsPatch.setFullscreenCloseButton(it.result as ImageView)
+                }
+            }
+        })
+
+        MotionEventFingerprint.hookMethod(scopedHook(DexMethod("Landroid/view/View;->setTranslationY(F)V").toMethod()) {
+            after {
+                // FIXME Animation lags behind
+                bottomControls.forEach { it.setVisibilityNegatedImmediate() }
+//                Logger.printDebug { "setVisibilityNegatedImmediate()" }
+            }
+        })
+    }
 
     fun overrideExploderLayout(fingerprint: Fingerprint) {
         val featureId = (fingerprint.filters!![0] as LiteralFilter).literal()
-        ::featureFlagCheck.hookMethod {
-            after {
-                if (it.args[0] == featureId)
-                    it.result =
-                        LegacyPlayerControlsPatch.usePlayerBottomControlsExploderLayout(it.result as Boolean)
-            }
+        transformBooleanFeatureFlag(featureId) {
+            LegacyPlayerControlsPatch.usePlayerBottomControlsExploderLayout(it)
         }
     }
 

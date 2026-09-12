@@ -85,6 +85,16 @@ try {
     } finally { $entryStream.Dispose() }
 } finally { $apkZip.Dispose() }
 Copy-Item "$root\controller\inject.sh" "$root\dist\inject.sh" -Force
+# Git may check the controller shell script out with CRLF on Windows. Android's
+# /system/bin/sh treats the resulting `set -eu\r` as an invalid option, so make
+# the packaged (not source) runtime POSIX/LF before it enters the archive.
+$packagedInject = Join-Path $root 'dist\inject.sh'
+$injectText = [System.IO.File]::ReadAllText($packagedInject)
+[System.IO.File]::WriteAllText(
+    $packagedInject,
+    ($injectText -replace "`r`n", "`n" -replace "`r", "`n"),
+    [System.Text.UTF8Encoding]::new($false)
+)
 Copy-Item "$root\controller\profiles\*" "$root\dist\profiles" -Recurse -Force
 
 # Emit one Android-POSIX shell file for releases. It contains a gzipped copy of
@@ -116,7 +126,7 @@ chmod 0700 "$ROOT/inject.sh"
 exec "$ROOT/inject.sh" "$@"
 __KHOIREVANCED_ARCHIVE_BELOW__
 '@
-$shellHeader = $shellHeader.TrimEnd("`r", "`n") + "`n"
+$shellHeader = ($shellHeader -replace "`r`n", "`n" -replace "`r", "`n").TrimEnd("`n") + "`n"
 [System.IO.File]::WriteAllText($singleFile, $shellHeader, [System.Text.UTF8Encoding]::new($false))
 $encodedArchive = [Convert]::ToBase64String([System.IO.File]::ReadAllBytes($archive))
 [System.IO.File]::AppendAllText($singleFile, "$encodedArchive`n", [System.Text.UTF8Encoding]::new($false))

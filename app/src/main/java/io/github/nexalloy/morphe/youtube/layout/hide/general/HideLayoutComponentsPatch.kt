@@ -28,7 +28,7 @@ import io.github.nexalloy.morphe.youtube.misc.engagement.EngagementPanelHook
 import io.github.nexalloy.morphe.youtube.misc.litho.filter.LithoFilter
 import io.github.nexalloy.morphe.shared.misc.litho.filter.addLithoFilter
 import io.github.nexalloy.morphe.shared.misc.litho.filter.emptyComponentClass
-import io.github.nexalloy.morphe.shared.misc.litho.filter.featureFlagCheck
+import io.github.nexalloy.morphe.shared.misc.litho.filter.transformBooleanFeatureFlag
 import io.github.nexalloy.morphe.youtube.misc.litho.node.TreeNodeElementHook
 import io.github.nexalloy.morphe.youtube.misc.litho.node.hookTreeNodeResult
 import io.github.nexalloy.morphe.youtube.misc.litho.observer.LayoutReloadObserver
@@ -341,11 +341,8 @@ val HideLayoutComponents = patch(
     // dimen.bar_container_height
     // dimen.watch_next_chip_bar_height
 
-    ::featureFlagCheck.hookMethod {
-        after {
-            if (it.args[0] == 45682279L)
-                it.result = LayoutComponentsFilter.hideInRelatedVideos(it.result as Boolean)
-        }
+    transformBooleanFeatureFlag(45682279L) {
+        LayoutComponentsFilter.hideInRelatedVideos(it)
     }
     // id.related_chip_cloud
 
