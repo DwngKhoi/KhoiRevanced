@@ -4,9 +4,9 @@ import app.morphe.extension.shared.patches.ForceOriginalAudioPatch
 import app.morphe.extension.shared.settings.preference.ForceOriginalAudioSwitchPreference
 import io.github.nexalloy.PatchExecutor
 import io.github.nexalloy.morphe.Fingerprint
-import io.github.nexalloy.morphe.shared.misc.debugging.experimentalBooleanFeatureFlagFingerprint
 import io.github.nexalloy.morphe.shared.misc.settings.preference.BasePreferenceScreen
 import io.github.nexalloy.morphe.shared.misc.settings.preference.SwitchPreference
+import io.github.nexalloy.morphe.youtube.insertLiteralOverride
 import io.github.nexalloy.patch
 
 /**
@@ -16,8 +16,9 @@ internal fun forceOriginalAudioPatch(
     block: PatchExecutor.() -> Unit = {},
     executeBlock: PatchExecutor.() -> Unit = {},
     fixUseLocalizedAudioTrackFlag: PatchExecutor.() -> Boolean,
+    forcedServerAdaptiveStreaming: PatchExecutor.() -> Boolean,
     mainActivityOnCreateFingerprint: Fingerprint,
-    subclassExtensionSetEnabled: () -> Unit,
+    subclassExtensionClassDescriptor: String,
     preferenceScreen: BasePreferenceScreen.Screen
 ) = patch(
     name = "Force original audio",
@@ -31,25 +32,6 @@ internal fun forceOriginalAudioPatch(
             tag = ForceOriginalAudioSwitchPreference::class.java
         )
     )
-
-    mainActivityOnCreateFingerprint.hookMethod {
-        before {
-            subclassExtensionSetEnabled()
-        }
-    }
-
-    // Disable feature flag that ignores the default track flag
-    // and instead overrides to the user region language.
-    if (fixUseLocalizedAudioTrackFlag()) {
-        ::experimentalBooleanFeatureFlagFingerprint.hookMethod {
-            after {
-                if (it.args[1] == AUDIO_STREAM_IGNORE_DEFAULT_FEATURE_FLAG) {
-                    it.result =
-                        ForceOriginalAudioPatch.ignoreDefaultAudioStream(it.result as Boolean)
-                }
-            }
-        }
-    }
 
     val getFormatStreamModelGetter = ::getFormatStreamModelGetter.dexMethodList
     val getIsDefaultAudioTrackFingerprint = getFormatStreamModelGetter[0]
@@ -67,6 +49,23 @@ internal fun forceOriginalAudioPatch(
             )
         }
     }
+
+    // Disable feature flag that ignores the default track flag
+    // and instead overrides to the user region language.
+    if (fixUseLocalizedAudioTrackFlag()) {
+        insertLiteralOverride(
+            AUDIO_STREAM_IGNORE_DEFAULT_FEATURE_FLAG,
+            ForceOriginalAudioPatch::ignoreDefaultAudioStream
+        )
+    }
+
+    // If there is no feature flag, the SABR protocol parameter (proto buffer) must be overridden:
+    // https://github.com/LuanRT/googlevideo/commit/173a2b0717c19c922e5fb53b170640a9c9d58819
+    //
+    // Since mapping the proto field and finding the appropriate hooking point is very difficult,
+    // 'Default audio track' patches has been implemented (like 'Default video quality' patches).
+
+    // TODO
 
     executeBlock()
 }

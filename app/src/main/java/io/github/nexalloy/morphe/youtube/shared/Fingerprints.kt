@@ -2,7 +2,9 @@ package io.github.nexalloy.morphe.youtube.shared
 
 import io.github.nexalloy.morphe.AccessFlags
 import io.github.nexalloy.morphe.Fingerprint
-import io.github.nexalloy.morphe.InstructionLocation.*
+import io.github.nexalloy.morphe.InstructionLocation.MatchAfterImmediately
+import io.github.nexalloy.morphe.InstructionLocation.MatchAfterWithin
+import io.github.nexalloy.morphe.InstructionLocation.MatchFirst
 import io.github.nexalloy.morphe.Opcode
 import io.github.nexalloy.morphe.fieldAccess
 import io.github.nexalloy.morphe.findClassDirect
@@ -65,13 +67,6 @@ val mainActivityOnBackPressedFingerprint = fingerprint {
     classMatcher { className(".MainActivity", StringMatchType.EndsWith) }
 }
 
-val mainActivityOnCreateFingerprint = fingerprint {
-    returns("V")
-    parameters("Landroid/os/Bundle;")
-    methodMatcher { name = "onCreate" }
-    classMatcher { className(".MainActivity", StringMatchType.EndsWith) }
-}
-
 internal object YouTubeActivityOnCreateFingerprint : Fingerprint(
     definingClass = YOUTUBE_MAIN_ACTIVITY_CLASS_TYPE,
     name = "onCreate",
@@ -83,6 +78,58 @@ val seekbarFingerprint = fingerprint {
     returns("V")
     strings("timed_markers_width")
 }
+
+internal object PlaybackSpeedOnItemClickParentFingerprint : Fingerprint(
+    accessFlags = listOf(AccessFlags.PUBLIC, AccessFlags.STATIC),
+    returnType = "L",
+    parameters = listOf("L", "Ljava/lang/String;"),
+    filters = listOf(
+        methodCall(name = "getSupportFragmentManager", location = MatchFirst()),
+        opcode(Opcode.MOVE_RESULT_OBJECT, location = MatchAfterImmediately()),
+        methodCall(
+            returnType = "L",
+            parameters = listOf("Ljava/lang/String;"),
+            location = MatchAfterImmediately()
+        ),
+        opcode(Opcode.MOVE_RESULT_OBJECT, location = MatchAfterImmediately()),
+        opcode(Opcode.IF_EQZ, location = MatchAfterImmediately()),
+        opcode(Opcode.CHECK_CAST, location = MatchAfterImmediately()),
+    ),
+    custom = {
+        declaredClass {
+            methodCount(8)
+        }
+    }
+)
+
+internal object SpeedLimiterParentFingerprint : Fingerprint(
+    accessFlags = listOf(AccessFlags.PUBLIC, AccessFlags.FINAL),
+    returnType = "V",
+    parameters = listOf("L"),
+    filters = listOf(
+        string("Playback rate: %f"),
+        literal(0.25f),
+        literal(4.0f),
+    )
+)
+
+internal object SpeedLimiterFingerprint : Fingerprint(
+    classFingerprint = SpeedLimiterParentFingerprint,
+    accessFlags = listOf(AccessFlags.PUBLIC, AccessFlags.FINAL),
+    returnType = "V",
+    filters = listOf(
+        literal(0.25f),
+        literal(4.0f),
+        methodCall(
+            opcode = Opcode.INVOKE_INTERFACE,
+            parameters = listOf("F"),
+            returnType = "V"
+        )
+    ),
+//    custom = { method, _ ->
+//        method.parameterTypes.firstOrNull() == "F"
+//    }
+)
 
 val videoQualityChangedFingerprint = fingerprint {
     accessFlags(AccessFlags.PUBLIC, AccessFlags.FINAL)
@@ -139,5 +186,12 @@ internal object WatchNextResponseParserFingerprint : Fingerprint(
             location = MatchAfterImmediately()
         ),
         literal(46659098L),
+    )
+)
+
+internal object InitializePlaybackSpeedValuesFingerprint : Fingerprint(
+    parameters = listOf("[L", "I"),
+    filters = listOf(
+        string("menu_item_playback_speed"),
     )
 )

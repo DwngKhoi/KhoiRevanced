@@ -19,11 +19,12 @@ val HideAds = patch(
 
     PreferenceScreen.ADS.addPreferences(
         SwitchPreference("morphe_music_hide_get_premium_label"),
+//        SwitchPreference("morphe_music_hide_music_premium_promotions"),
         SwitchPreference("morphe_music_hide_video_ads"),
     )
 
     // Hide 'Get Music Premium' label
-    ::hideGetPremiumFingerprint.hookMethod {
+    HideGetPremiumFingerprint.hookMethod {
         val id = ResourceUtils.getIdIdentifier("unlimited_panel")
         after { param ->
             val thiz = param.thisObject
@@ -38,7 +39,7 @@ val HideAds = patch(
         }
     }
 
-    ::membershipSettingsFingerprint.hookMethod {
+    MembershipSettingsFingerprint.hookMethod {
         before {
             if (HideAdsPatch.hideGetPremiumLabel()) it.result = null
         }
@@ -49,4 +50,6 @@ val HideAds = patch(
             param.args[0] = HideAdsPatch.hideVideoAds(param.args[0] as Boolean)
         }
     }
+
+    // TODO Hide Music Premium promotions
 }

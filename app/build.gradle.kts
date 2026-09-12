@@ -26,7 +26,7 @@ android {
 
     defaultConfig {
         applicationId = "io.github.chsbuffer.revancedxposed"
-        versionCode = 105
+        versionCode = 107
         versionName = "2.0.$versionCode"
         val patchVersion = Properties().apply {
             rootProject.file("morphe-patches/gradle.properties").inputStream().use { load(it) }
@@ -73,6 +73,14 @@ android {
             }
         }
     }
+
+    packaging {
+        resources {
+            merges += "META-INF/xposed/*"
+//            excludes += "**"
+        }
+    }
+
     lint {
         checkReleaseBuilds = false
     }
@@ -146,6 +154,8 @@ dependencies {
     testImplementation(libs.slf4j.simple)
     debugImplementation(kotlin("reflect"))
     compileOnly(libs.xposed)
+    compileOnly(libs.libxposed.api)
+    implementation(libs.libxposed.service)
 //    implementation(project(":extensions"))
     compileOnly(project(":stub"))
     implementation(libs.androidx.javascriptengine)
@@ -290,6 +300,7 @@ abstract class CopyResourcesTask @Inject constructor() : DefaultTask() {
             "downloads/drawable" to null,
             "speedbutton/drawable" to null,
             "navigationbuttons/drawable" to null,
+            "speed/drawable" to null,
         )
 
         for ((resourcePath, excludes) in resourcePaths) {

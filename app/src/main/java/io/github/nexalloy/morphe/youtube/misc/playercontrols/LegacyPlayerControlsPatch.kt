@@ -3,58 +3,36 @@ package io.github.nexalloy.morphe.youtube.misc.playercontrols
 import android.view.View
 import android.view.ViewGroup
 import android.view.ViewStub
-import android.widget.ImageView
 import android.widget.RelativeLayout
 import app.morphe.extension.shared.ResourceUtils
 import app.morphe.extension.shared.Utils
 import app.morphe.extension.youtube.patches.LegacyPlayerControlsPatch
 import io.github.nexalloy.HookDsl
 import io.github.nexalloy.IHookCallback
-import io.github.nexalloy.PatchExecutor
-import io.github.nexalloy.morphe.Fingerprint
-import io.github.nexalloy.morphe.LiteralFilter
 import io.github.nexalloy.morphe.shared.misc.settings.preference.SwitchPreference
-import io.github.nexalloy.morphe.shared.misc.litho.filter.isDirectRuntime
-import io.github.nexalloy.morphe.shared.misc.litho.filter.transformBooleanFeatureFlag
+import io.github.nexalloy.morphe.youtube.insertLiteralOverride
 import io.github.nexalloy.morphe.youtube.misc.playservice.VersionCheck
 import io.github.nexalloy.morphe.youtube.misc.playservice.is_20_28_or_greater
 import io.github.nexalloy.morphe.youtube.misc.playservice.is_20_30_or_greater
 import io.github.nexalloy.morphe.youtube.misc.playservice.is_20_31_or_greater
+import io.github.nexalloy.morphe.youtube.misc.playservice.is_21_05_or_greater
 import io.github.nexalloy.morphe.youtube.misc.settings.PreferenceScreen
 import io.github.nexalloy.patch
-import io.github.nexalloy.scopedHook
 import org.luckypray.dexkit.wrap.DexMethod
 
 class ControlInitializer(
     val id: Int,
     @JvmField val initializeButton: (controlsView: ViewGroup) -> Unit,
-    // visibilityCheckCalls
-    @JvmField val setVisibility: (Boolean, Boolean) -> Unit,
-    @JvmField val setVisibilityImmediate: (Boolean) -> Unit,
-    // Patch works without this hook, but it is needed to use the correct fade out animation
-    // duration when tapping the overlay to dismiss.
-    @JvmField val setVisibilityNegatedImmediate: () -> Unit
 )
 
 private data class TopControlLayout(
-    val layout: Int,
-    val startViewId: Int,
-    val endViewId: Int
+    val layout: Int, val startViewId: Int, val endViewId: Int
 )
 
 private val topControlLayouts = mutableListOf<TopControlLayout>()
 private val bottomControlLayouts = mutableListOf<Int>()
 private val topControls = mutableListOf<ControlInitializer>()
 private val bottomControls = mutableListOf<ControlInitializer>()
-
-@JvmField
-var visibilityImmediateCallbacksExistModified = false
-
-fun onFullscreenButtonVisibilityChanged(isVisible: Boolean) {
-    topControls.forEach { it.setVisibilityImmediate(isVisible) }
-    bottomControls.forEach { it.setVisibilityImmediate(isVisible) }
-//    Logger.printDebug { ("setVisibilityImmediate($isVisible)") }
-}
 
 fun addTopControl(layout: Int, startViewId: Int, endViewId: Int) {
     topControlLayouts.add(TopControlLayout(layout, startViewId, endViewId))
@@ -66,18 +44,10 @@ fun addLegacyBottomControl(layout: Int) {
 
 fun initializeTopControl(control: ControlInitializer) {
     topControls.add(control)
-    injectVisibilityCheckCall()
 }
 
 fun initializeLegacyBottomControl(control: ControlInitializer) {
     bottomControls.add(control)
-    injectVisibilityCheckCall()
-}
-
-private fun injectVisibilityCheckCall() {
-    if (!visibilityImmediateCallbacksExistModified) {
-        visibilityImmediateCallbacksExistModified = true
-    }
 }
 
 private fun onTopContainerInflate(viewStub: ViewStub, root: ViewGroup) {
@@ -134,6 +104,30 @@ val LegacyPlayerControls = patch(
             SwitchPreference("morphe_restore_old_player_buttons", summary = true)
         )
     }
+    // Override flags that interfere with old player icons override.
+    insertLiteralOverride(45757309, LegacyPlayerControlsPatch::allowModernPlayerLayoutFlags)
+    insertLiteralOverride(45771730, LegacyPlayerControlsPatch::allowModernPlayerLayoutFlags)
+    insertLiteralOverride(45763727, LegacyPlayerControlsPatch::allowModernPlayerLayoutFlags)
+    fun overrideExploderLayout(id: Long) = insertLiteralOverride(
+        id, LegacyPlayerControlsPatch::usePlayerBottomControlsExploderLayout
+    )
+
+    // A/B test for a slightly different bottom overlay controls,
+    // that uses layout file youtube_video_exploder_controls_bottom_ui_container.xml
+    // The change to support this is simple and only requires adding buttons to both layout files,
+    // but for now force this different layout off since it's still an experimental test.
+    overrideExploderLayout(45643739L)
+
+    // Turn off a/b tests of ugly player buttons that don't match the style of custom player buttons.
+    overrideExploderLayout(45686474L)
+
+    if (is_20_28_or_greater) {
+        overrideExploderLayout(45709810L)
+    }
+
+    if (is_20_30_or_greater) {
+        overrideExploderLayout(45713296)
+    }
 
     DexMethod("Landroid/view/ViewStub;->inflate()Landroid/view/View;").hookMethod {
         after {
@@ -155,8 +149,6 @@ val LegacyPlayerControls = patch(
 //            Logger.printDebug { "inject into $viewStubName" }
         }
     }
-
-    initInjectVisibilityCheckCall()
 
     val youtube_controls_bottom_ui_container =
         ResourceUtils.getIdIdentifier("youtube_controls_bottom_ui_container")
@@ -184,86 +176,16 @@ val LegacyPlayerControls = patch(
         }
     }
 
-    DexMethod("Landroid/support/constraint/ConstraintLayout;->onLayout(ZIIII)V").hookMethod(onLayoutHook)
-    DexMethod("Landroidx/constraintlayout/widget/ConstraintLayout;->onLayout(ZIIII)V").hookMethod(onLayoutHook)
-}
+    DexMethod("Landroid/support/constraint/ConstraintLayout;->onLayout(ZIIII)V").hookMethod(
+        onLayoutHook
+    )
+    DexMethod("Landroidx/constraintlayout/widget/ConstraintLayout;->onLayout(ZIIII)V").hookMethod(
+        onLayoutHook
+    )
 
-private fun PatchExecutor.initInjectVisibilityCheckCall() {
-    ControlsOverlayVisibilityFingerprint.hookMethod {
-        before { param ->
-            bottomControls.forEach {
-                it.setVisibility(param.args[0] as Boolean, param.args[1] as Boolean)
-            }
-//            Logger.printDebug { "setVisibility(visible: ${param.args[0]}, animated: ${param.args[1]})" }
-        }
+    if (is_21_05_or_greater) {
+        insertLiteralOverride(45750838L, LegacyPlayerControlsPatch::useModernPlayerTopControls)
     }
 
-    if (isDirectRuntime()) {
-        // Pine on ART 16 cannot reliably execute an original hooked method when that
-        // method immediately enters another Pine bridge. Resolve the fullscreen button
-        // after the outer initializer returns instead of nesting a View.findViewById hook.
-        OverlayViewInflateFingerprint.hookMethod {
-            after { param ->
-                val root = param.args[0] as? View ?: return@after
-                val fullscreenButton =
-                    root.findViewById<ImageView>(fullscreen_button_id) ?: return@after
-                LegacyPlayerControlsPatch.setFullscreenCloseButton(fullscreenButton)
-            }
-        }
-
-        // The scoped upstream hook only uses setTranslationY as a signal that the
-        // MotionEvent handler finished moving the controls. Running the callback once
-        // after the outer handler has the same final state and avoids a nested bridge.
-        MotionEventFingerprint.hookMethod {
-            after {
-                bottomControls.forEach { it.setVisibilityNegatedImmediate() }
-            }
-        }
-    } else {
-        // Hook the fullscreen close button. Used to fix visibility
-        // when seeking and other situations.
-        OverlayViewInflateFingerprint.hookMethod(scopedHook(DexMethod("Landroid/view/View;->findViewById(I)Landroid/view/View;").toMember()) {
-            val fullscreenButtonId = fullscreen_button_id
-            after {
-                if (it.args[0] == fullscreenButtonId) {
-                    LegacyPlayerControlsPatch.setFullscreenCloseButton(it.result as ImageView)
-                }
-            }
-        })
-
-        MotionEventFingerprint.hookMethod(scopedHook(DexMethod("Landroid/view/View;->setTranslationY(F)V").toMethod()) {
-            after {
-                // FIXME Animation lags behind
-                bottomControls.forEach { it.setVisibilityNegatedImmediate() }
-//                Logger.printDebug { "setVisibilityNegatedImmediate()" }
-            }
-        })
-    }
-
-    fun overrideExploderLayout(fingerprint: Fingerprint) {
-        val featureId = (fingerprint.filters!![0] as LiteralFilter).literal()
-        transformBooleanFeatureFlag(featureId) {
-            LegacyPlayerControlsPatch.usePlayerBottomControlsExploderLayout(it)
-        }
-    }
-
-    // A/B test for a slightly different bottom overlay controls,
-    // that uses layout file youtube_video_exploder_controls_bottom_ui_container.xml
-    // The change to support this is simple and only requires adding buttons to both layout files,
-    // but for now force this different layout off since it's still an experimental test.
-
-    overrideExploderLayout(PlayerBottomControlsExploderFeatureFlagFingerprint)
-
-    // Turn off a/b tests of ugly player buttons that don't match the style of custom player buttons.
-    overrideExploderLayout(PlayerControlsFullscreenLargeButtonsFeatureFlagFingerprint)
-
-    if (is_20_28_or_greater) {
-        overrideExploderLayout(PlayerControlsLargeOverlayButtonsFeatureFlagFingerprint)
-    }
-
-    if (is_20_30_or_greater) {
-        overrideExploderLayout(PlayerControlsButtonStrokeFeatureFlagFingerprint)
-    }
-
-    // TODO Clear bottom gradient.
+    // TODO Addon
 }

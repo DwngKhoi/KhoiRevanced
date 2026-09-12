@@ -1,12 +1,13 @@
 package io.github.nexalloy.morphe.youtube.layout.captions
 
 import app.morphe.extension.youtube.patches.AutoCaptionsPatch
-import io.github.nexalloy.patch
 import io.github.nexalloy.morphe.shared.misc.settings.preference.ListPreference
+import io.github.nexalloy.morphe.youtube.insertLiteralOverride
 import io.github.nexalloy.morphe.youtube.misc.playservice.VersionCheck
 import io.github.nexalloy.morphe.youtube.misc.playservice.is_20_26_or_greater
 import io.github.nexalloy.morphe.youtube.misc.settings.PreferenceScreen
 import io.github.nexalloy.morphe.youtube.video.information.onCreateHook
+import io.github.nexalloy.patch
 
 val AutoCaptions = patch(
     name = "Auto captions",
@@ -36,11 +37,6 @@ val AutoCaptions = patch(
 
     // Disable mute auto captions feature flag.
     if (is_20_26_or_greater) {
-        // NoVolumeCaptionsFeatureFlagFingerprint
-        NoVolumeCaptionsFeatureFlagFingerprint.hookMethod {
-            before {
-                it.result = AutoCaptionsPatch.disableMuteAutoCaptions()
-            }
-        }
+        insertLiteralOverride(45692436L, AutoCaptionsPatch::disableMuteAutoCaptions)
     }
 }
