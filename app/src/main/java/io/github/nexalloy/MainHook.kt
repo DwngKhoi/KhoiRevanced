@@ -1,5 +1,6 @@
 package io.github.nexalloy
 
+import android.app.AppComponentFactory
 import android.app.Application
 import android.content.pm.ApplicationInfo
 import app.morphe.extension.shared.ResourceType
@@ -45,7 +46,9 @@ class MainHook : XposedModule(), IXposedHookLoadPackage, IXposedHookZygoteInit {
         val readyParam = object : PackageReadyParam {
             override fun getPackageName(): String = lpparam.packageName
             override fun getClassLoader(): ClassLoader = lpparam.classLoader
+            override fun getDefaultClassLoader(): ClassLoader = lpparam.classLoader
             override fun getApplicationInfo(): ApplicationInfo = lpparam.appInfo
+            override fun getAppComponentFactory(): AppComponentFactory = AppComponentFactory()
             override fun isFirstPackage(): Boolean = lpparam.isFirstApplication
         }
         onPackageReady(readyParam)

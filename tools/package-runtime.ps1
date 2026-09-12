@@ -5,6 +5,8 @@ param(
 )
 
 $ErrorActionPreference = 'Stop'
+$jbr = 'C:\Program Files\Android\Android Studio\jbr'
+if (Test-Path $jbr) { $env:JAVA_HOME = $jbr }
 $root = Split-Path -Parent $PSScriptRoot
 $sdk = if ($env:ANDROID_SDK_ROOT) { $env:ANDROID_SDK_ROOT } else { Join-Path $env:LOCALAPPDATA 'Android\Sdk' }
 $ndk = Join-Path $sdk 'ndk\25.2.9519653'
