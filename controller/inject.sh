@@ -41,7 +41,10 @@ prepare_payload() {
     cp -f "$PAYLOAD_DIR/khoirevanced-injector" "$RUNTIME_DIR/"
     cp -f "$PAYLOAD_DIR/libkhoirevanced_agent.so" "$RUNTIME_DIR/"
     cp -f "$PAYLOAD_DIR/libpine.so" "$RUNTIME_DIR/"
-    cp -f "$PAYLOAD_DIR/nexalloy.dexpack" "$RUNTIME_DIR/"
+    # DexClassLoader uses the APK/ZIP suffix to select the multidex APK path.
+    # Keep the build artifact named .dexpack, but expose it to ART as a real
+    # APK so classes.dex through classes19.dex are all discovered.
+    cp -f "$PAYLOAD_DIR/nexalloy.dexpack" "$RUNTIME_DIR/nexalloy.apk"
     cp -f "$PAYLOAD_DIR/libdexkit.so" "$RUNTIME_DIR/"
     cp -f "$PAYLOAD_DIR/classes.dex" "$RUNTIME_DIR/"
     # ART rejects a DEX owned by the app when it remains writable. Keep runtime
@@ -49,10 +52,10 @@ prepare_payload() {
     chown root:root "$RUNTIME_DIR/khoirevanced-injector" \
         "$RUNTIME_DIR/libkhoirevanced_agent.so" "$RUNTIME_DIR/classes.dex"
     chown root:root "$RUNTIME_DIR/libpine.so"
-    chown root:root "$RUNTIME_DIR/nexalloy.dexpack" "$RUNTIME_DIR/libdexkit.so"
+    chown root:root "$RUNTIME_DIR/nexalloy.apk" "$RUNTIME_DIR/libdexkit.so"
     chmod 0755 "$RUNTIME_DIR/khoirevanced-injector"
     chmod 0444 "$RUNTIME_DIR/libkhoirevanced_agent.so" "$RUNTIME_DIR/libpine.so" \
-        "$RUNTIME_DIR/libdexkit.so" "$RUNTIME_DIR/nexalloy.dexpack" "$RUNTIME_DIR/classes.dex"
+        "$RUNTIME_DIR/libdexkit.so" "$RUNTIME_DIR/nexalloy.apk" "$RUNTIME_DIR/classes.dex"
     chown "$uid:$uid" "$RUNTIME_DIR" "$RUN_DIR" "$CACHE_DIR"
     chmod 0700 "$RUNTIME_DIR" "$RUN_DIR" "$CACHE_DIR"
 }
@@ -89,7 +92,7 @@ write_config() {
         echo "dex=$RUNTIME_DIR/classes.dex"
         echo "cache=$CACHE_DIR"
         echo "agent=$RUNTIME_DIR/libkhoirevanced_agent.so"
-        echo "module=$RUNTIME_DIR/nexalloy.dexpack"
+        echo "module=$RUNTIME_DIR/nexalloy.apk"
         echo "action=inject"
         echo "package=$PACKAGE"
         echo "profile=$PROFILE"

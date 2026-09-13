@@ -1,19 +1,139 @@
 <ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
-    android:layout_width="match_parent" android:layout_height="match_parent" android:background="#05070D" android:fillViewport="true">
-    <LinearLayout android:layout_width="match_parent" android:layout_height="match_parent" android:orientation="vertical" android:padding="24dp">
-        <View android:layout_width="match_parent" android:layout_height="3dp" android:background="#FF00E5FF" />
-        <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="20dp" android:text="// KHOI REVANCED" android:textColor="#FF00E5FF" android:textSize="14sp" android:textStyle="bold" />
-        <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:text="LAUNCH MATRIX" android:textColor="#FFFFFFFF" android:textSize="30sp" android:textStyle="bold" />
-        <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="6dp" android:text="Direct root injection • embedded runtime • live targets" android:textColor="#FF94AAB0" android:textSize="13sp" />
-        <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="30dp" android:background="@drawable/cyber_panel_round" android:orientation="vertical" android:padding="16dp">
-            <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:text="SELECT A TARGET" android:textColor="#FFFF4FA3" android:textSize="12sp" android:textStyle="bold" />
-            <Button android:id="@+id/launch_youtube" android:layout_width="match_parent" android:layout_height="68dp" android:layout_marginTop="16dp" android:background="@drawable/cyber_button_round" android:text="▶  LAUNCH YOUTUBE" android:textColor="#FF05070D" android:textSize="16sp" android:textStyle="bold" />
-            <Button android:id="@+id/shortcut_youtube" android:layout_width="wrap_content" android:layout_height="42dp" android:layout_marginTop="6dp" android:background="@drawable/cyber_button_outline" android:text="＋ ADD HOME SHORTCUT" android:textColor="#FF00E5FF" android:textSize="11sp" android:textStyle="bold" />
-            <Button android:id="@+id/launch_music" android:layout_width="match_parent" android:layout_height="68dp" android:layout_marginTop="14dp" android:background="@drawable/cyber_button_pink" android:text="♫  LAUNCH YOUTUBE MUSIC" android:textColor="#FFFFFFFF" android:textSize="16sp" android:textStyle="bold" />
-            <Button android:id="@+id/shortcut_music" android:layout_width="wrap_content" android:layout_height="42dp" android:layout_marginTop="6dp" android:background="@drawable/cyber_button_outline" android:text="＋ ADD HOME SHORTCUT" android:textColor="#FF00E5FF" android:textSize="11sp" android:textStyle="bold" />
-            <Button android:id="@+id/launch_photos" android:layout_width="match_parent" android:layout_height="68dp" android:layout_marginTop="14dp" android:background="@drawable/cyber_button_dark" android:text="◉  LAUNCH GOOGLE PHOTOS" android:textColor="#FFD7FAFF" android:textSize="16sp" android:textStyle="bold" />
-            <Button android:id="@+id/shortcut_photos" android:layout_width="wrap_content" android:layout_height="42dp" android:layout_marginTop="6dp" android:background="@drawable/cyber_button_outline" android:text="＋ ADD HOME SHORTCUT" android:textColor="#FF00E5FF" android:textSize="11sp" android:textStyle="bold" />
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="#070910"
+    android:fillViewport="true">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:padding="24dp">
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="KHOI REVANCED"
+            android:textColor="#FF22E6FF"
+            android:textSize="13sp"
+            android:textStyle="bold"
+            android:letterSpacing="0.12" />
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="26dp"
+            android:text="LAUNCH&#10;MATRIX"
+            android:textColor="#FFF5F7FA"
+            android:textSize="40sp"
+            android:textStyle="bold" />
+
+        <View
+            android:layout_width="match_parent"
+            android:layout_height="3dp"
+            android:layout_marginTop="22dp"
+            android:background="#FFFF3F9F" />
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="18dp"
+            android:text="Choose a target. The manager starts the stock app, injects the root runtime, and returns you to the target when it is ready."
+            android:textColor="#FF9AA8B3"
+            android:textSize="13sp" />
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="24dp"
+            android:background="@drawable/cyber_panel_round"
+            android:orientation="vertical"
+            android:padding="18dp">
+
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="SUPPORTED TARGETS"
+                android:textColor="#FFFF3F9F"
+                android:textSize="11sp"
+                android:textStyle="bold"
+                android:letterSpacing="0.1" />
+
+            <Button
+                android:id="@+id/launch_youtube"
+                android:layout_width="match_parent"
+                android:layout_height="62dp"
+                android:layout_marginTop="16dp"
+                android:background="@drawable/cyber_button_round"
+                android:text="LAUNCH  •  YOUTUBE"
+                android:textColor="#FF05070D"
+                android:textSize="14sp"
+                android:textStyle="bold" />
+
+            <Button
+                android:id="@+id/shortcut_youtube"
+                android:layout_width="match_parent"
+                android:layout_height="40dp"
+                android:layout_marginTop="6dp"
+                android:background="@drawable/cyber_button_outline"
+                android:text="ADD YOUTUBE SHORTCUT"
+                android:textColor="#FF22E6FF"
+                android:textSize="10sp"
+                android:textStyle="bold" />
+
+            <Button
+                android:id="@+id/launch_music"
+                android:layout_width="match_parent"
+                android:layout_height="62dp"
+                android:layout_marginTop="16dp"
+                android:background="@drawable/cyber_button_pink"
+                android:text="LAUNCH  •  YOUTUBE MUSIC"
+                android:textColor="#FFFFFFFF"
+                android:textSize="14sp"
+                android:textStyle="bold" />
+
+            <Button
+                android:id="@+id/shortcut_music"
+                android:layout_width="match_parent"
+                android:layout_height="40dp"
+                android:layout_marginTop="6dp"
+                android:background="@drawable/cyber_button_outline"
+                android:text="ADD MUSIC SHORTCUT"
+                android:textColor="#FF22E6FF"
+                android:textSize="10sp"
+                android:textStyle="bold" />
+
+            <Button
+                android:id="@+id/launch_photos"
+                android:layout_width="match_parent"
+                android:layout_height="62dp"
+                android:layout_marginTop="16dp"
+                android:background="@drawable/cyber_button_dark"
+                android:text="LAUNCH  •  GOOGLE PHOTOS"
+                android:textColor="#FFD6F8FF"
+                android:textSize="14sp"
+                android:textStyle="bold" />
+
+            <Button
+                android:id="@+id/shortcut_photos"
+                android:layout_width="match_parent"
+                android:layout_height="40dp"
+                android:layout_marginTop="6dp"
+                android:background="@drawable/cyber_button_outline"
+                android:text="ADD PHOTOS SHORTCUT"
+                android:textColor="#FF22E6FF"
+                android:textSize="10sp"
+                android:textStyle="bold" />
         </LinearLayout>
-        <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="24dp" android:background="@drawable/cyber_panel_round" android:padding="16dp" android:text="Launch buttons inject immediately. Shortcut buttons use each official app icon and leave no duplicate Manager task." android:textColor="#FF91A8B0" android:textSize="12sp" />
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="18dp"
+            android:background="@drawable/cyber_panel"
+            android:padding="14dp"
+            android:text="Standalone mode • no LSPosed installation • root manager authorization required"
+            android:textColor="#FF71818A"
+            android:textSize="11sp" />
     </LinearLayout>
 </ScrollView>

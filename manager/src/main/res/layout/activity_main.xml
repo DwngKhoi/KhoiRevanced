@@ -1,16 +1,111 @@
-<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:background="#05070D"
-    android:gravity="center_horizontal"
-    android:orientation="vertical"
-    android:padding="28dp">
-    <View android:layout_width="match_parent" android:layout_height="2dp" android:background="#FF00E5FF" />
-    <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="18dp" android:text="// KHOI REVANCED" android:textColor="#FF00E5FF" android:textSize="14sp" android:textStyle="bold" />
-    <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:text="ROOT ACCESS TERMINAL" android:textColor="#FFFFFFFF" android:textSize="27sp" android:textStyle="bold" />
-    <ImageView android:layout_width="116dp" android:layout_height="116dp" android:layout_marginTop="42dp" android:background="@drawable/icon_round_black" android:contentDescription="KhoiRevanced" android:padding="8dp" android:src="@drawable/khoirevanced_icon" />
-    <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginTop="18dp" android:text="FIRST-RUN AUTHORIZATION" android:textColor="#FFFF4FA3" android:textSize="13sp" android:textStyle="bold" />
-    <Button android:id="@+id/root_check" android:layout_width="match_parent" android:layout_height="56dp" android:layout_marginTop="30dp" android:background="@drawable/cyber_button" android:text="GRANT ROOT ACCESS" android:textColor="#FF05070D" android:textStyle="bold" />
-    <TextView android:id="@+id/status" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="18dp" android:background="@drawable/cyber_panel" android:padding="16dp" android:text="Root permission is required once to enable the embedded runtime." android:textColor="#FFBCECF2" android:textSize="13sp" />
-    <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="34dp" android:text="[ LOCAL • ROOT • DIRECT INJECTION ]" android:textColor="#FF65747A" android:textSize="11sp" />
-</LinearLayout>
+    android:background="#070910"
+    android:fillViewport="true">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:padding="24dp">
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="KHOI REVANCED"
+            android:textColor="#FF22E6FF"
+            android:textSize="13sp"
+            android:textStyle="bold"
+            android:letterSpacing="0.12" />
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:background="@drawable/cyber_panel"
+            android:paddingLeft="10dp"
+            android:paddingTop="5dp"
+            android:paddingRight="10dp"
+            android:paddingBottom="5dp"
+            android:text="STANDALONE ROOT RUNTIME"
+            android:textColor="#FF9AA8B3"
+            android:textSize="9sp"
+            android:textStyle="bold"
+            android:letterSpacing="0.08" />
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="28dp"
+            android:text="ROOT&#10;ACCESS"
+            android:textColor="#FFF5F7FA"
+            android:textSize="40sp"
+            android:textStyle="bold" />
+
+        <View
+            android:layout_width="match_parent"
+            android:layout_height="3dp"
+            android:layout_marginTop="22dp"
+            android:background="#FF22E6FF" />
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="28dp"
+            android:background="@drawable/cyber_panel_round"
+            android:gravity="center_horizontal"
+            android:orientation="vertical"
+            android:padding="22dp">
+
+            <ImageView
+                android:layout_width="104dp"
+                android:layout_height="104dp"
+                android:background="@drawable/icon_round_black"
+                android:contentDescription="KhoiRevanced"
+                android:padding="8dp"
+                android:src="@drawable/khoirevanced_icon" />
+
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="20dp"
+                android:text="Authorize root once to launch the embedded runtime and attach it directly to supported apps."
+                android:textColor="#FFB6C6CC"
+                android:textSize="13sp" />
+
+            <Button
+                android:id="@+id/root_check"
+                android:layout_width="match_parent"
+                android:layout_height="56dp"
+                android:layout_marginTop="22dp"
+                android:background="@drawable/cyber_button"
+                android:text="GRANT ROOT ACCESS"
+                android:textColor="#FF05070D"
+                android:textSize="13sp"
+                android:textStyle="bold" />
+
+            <TextView
+                android:id="@+id/status"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="14dp"
+                android:background="@drawable/cyber_panel"
+                android:fontFamily="monospace"
+                android:padding="14dp"
+                android:text="Waiting for root authorization..."
+                android:textColor="#FFBDECF2"
+                android:textSize="11sp" />
+        </LinearLayout>
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="18dp"
+            android:gravity="center"
+            android:text="LOCAL  •  ROOT  •  DIRECT INJECTION"
+            android:textColor="#FF71818A"
+            android:textSize="10sp"
+            android:letterSpacing="0.08" />
+    </LinearLayout>
+</ScrollView>

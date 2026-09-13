@@ -1,12 +1,15 @@
 package com.dwngkhoi.revanced;
 
 import android.app.Activity;
+import android.content.ClipData;
+import android.content.ClipboardManager;
 import android.content.Intent;
 import android.content.SharedPreferences;
 import android.content.pm.ShortcutInfo;
 import android.content.pm.ShortcutManager;
 import android.graphics.drawable.Icon;
 import android.os.Bundle;
+import android.widget.Toast;
 import android.widget.Button;
 import android.widget.TextView;
 
@@ -28,6 +31,8 @@ public final class MainActivity extends Activity {
 
     private SharedPreferences preferences;
     private TextView status;
+    private Profile activeProfile;
+    private String lastLog = "";
 
     @Override
     public void onCreate(Bundle state) {
@@ -122,8 +127,17 @@ public final class MainActivity extends Activity {
     }
 
     private void showLoadingAndLaunch(Profile profile) {
+        activeProfile = profile;
+        lastLog = "";
         setContentView(R.layout.activity_loading);
         status = findViewById(R.id.loading_status);
+        Button copyLog = findViewById(R.id.copy_log);
+        Button retry = findViewById(R.id.retry_injection);
+        Button dashboard = findViewById(R.id.back_dashboard);
+        copyLog.setEnabled(false);
+        copyLog.setOnClickListener(v -> copyLog());
+        retry.setOnClickListener(v -> showLoadingAndLaunch(activeProfile));
+        dashboard.setOnClickListener(v -> showDashboard());
         status.setText("PREPARING " + profile.label.toUpperCase() + "...");
         new Thread(() -> {
             try {
@@ -154,9 +168,21 @@ public final class MainActivity extends Activity {
 
     private void showRuntimeError(String message) {
         runOnUiThread(() -> {
-            status.setText("INJECTION FAILED\n" + message);
+            lastLog = message == null || message.isEmpty() ? "Unknown runtime error" : message;
+            status.setText(lastLog);
+            Button copyLog = findViewById(R.id.copy_log);
+            if (copyLog != null) copyLog.setEnabled(true);
             findViewById(R.id.loading_progress).setVisibility(android.view.View.GONE);
         });
+    }
+
+    private void copyLog() {
+        if (lastLog.isEmpty()) return;
+        ClipboardManager clipboard = (ClipboardManager) getSystemService(CLIPBOARD_SERVICE);
+        if (clipboard != null) {
+            clipboard.setPrimaryClip(ClipData.newPlainText("KhoiRevanced runtime log", lastLog));
+            Toast.makeText(this, "Log đã được copy", Toast.LENGTH_SHORT).show();
+        }
     }
 
     private static Profile profileFor(String id) {

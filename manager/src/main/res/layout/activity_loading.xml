@@ -1,15 +1,148 @@
-<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:background="#05070D"
-    android:gravity="center"
-    android:orientation="vertical"
-    android:padding="32dp">
-    <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:text="// KHOI REVANCED" android:textColor="#FF00E5FF" android:textSize="14sp" android:textStyle="bold" />
-    <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="6dp" android:text="INJECTION SEQUENCE" android:textColor="#FFFFFFFF" android:textSize="28sp" android:textStyle="bold" />
-    <View android:layout_width="match_parent" android:layout_height="2dp" android:layout_marginTop="16dp" android:background="#FFFF4FA3" />
-    <ImageView android:layout_width="100dp" android:layout_height="100dp" android:layout_marginTop="46dp" android:background="@drawable/icon_round_black" android:contentDescription="KhoiRevanced" android:padding="8dp" android:src="@drawable/khoirevanced_icon" />
-    <ProgressBar android:id="@+id/loading_progress" style="?android:attr/progressBarStyleLarge" android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginTop="34dp" android:indeterminateTint="#FF00E5FF" />
-    <TextView android:id="@+id/loading_status" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="28dp" android:background="@drawable/cyber_panel" android:gravity="center" android:padding="18dp" android:textColor="#FFBCECF2" android:textSize="13sp" android:textStyle="bold" />
-    <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginTop="22dp" android:text="DO NOT CLOSE THIS WINDOW" android:textColor="#FFFF4FA3" android:textSize="11sp" />
-</LinearLayout>
+    android:background="#070910"
+    android:fillViewport="true">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:padding="24dp">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:gravity="center_vertical">
+
+            <TextView
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="KHOI REVANCED"
+                android:textColor="#FF22E6FF"
+                android:textSize="13sp"
+                android:textStyle="bold"
+                android:letterSpacing="0.12" />
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:background="@drawable/cyber_panel"
+                android:paddingLeft="10dp"
+                android:paddingTop="5dp"
+                android:paddingRight="10dp"
+                android:paddingBottom="5dp"
+                android:text="ROOT RUNTIME"
+                android:textColor="#FF9AA8B3"
+                android:textSize="9sp"
+                android:textStyle="bold"
+                android:letterSpacing="0.08" />
+        </LinearLayout>
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="28dp"
+            android:text="INJECTION&#10;SEQUENCE"
+            android:textColor="#FFF5F7FA"
+            android:textSize="38sp"
+            android:textStyle="bold"
+            android:letterSpacing="-0.02" />
+
+        <View
+            android:layout_width="match_parent"
+            android:layout_height="3dp"
+            android:layout_marginTop="22dp"
+            android:background="#FFFF3F9F" />
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="28dp"
+            android:gravity="center"
+            android:orientation="vertical">
+
+            <ImageView
+                android:layout_width="94dp"
+                android:layout_height="94dp"
+                android:background="@drawable/icon_round_black"
+                android:contentDescription="KhoiRevanced"
+                android:padding="8dp"
+                android:src="@drawable/khoirevanced_icon" />
+
+            <ProgressBar
+                android:id="@+id/loading_progress"
+                style="?android:attr/progressBarStyleLarge"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="22dp"
+                android:indeterminateTint="#FF22E6FF" />
+        </LinearLayout>
+
+        <TextView
+            android:id="@+id/loading_status"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="24dp"
+            android:background="@drawable/cyber_panel_round"
+            android:fontFamily="monospace"
+            android:gravity="start"
+            android:minHeight="120dp"
+            android:padding="18dp"
+            android:textColor="#FFBDECF2"
+            android:textIsSelectable="true"
+            android:textSize="12sp" />
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="14dp"
+            android:orientation="horizontal">
+
+            <Button
+                android:id="@+id/copy_log"
+                android:layout_width="0dp"
+                android:layout_height="48dp"
+                android:layout_marginRight="6dp"
+                android:layout_weight="1"
+                android:background="@drawable/cyber_button_outline"
+                android:text="COPY LOG"
+                android:textColor="#FF22E6FF"
+                android:textSize="11sp"
+                android:textStyle="bold" />
+
+            <Button
+                android:id="@+id/retry_injection"
+                android:layout_width="0dp"
+                android:layout_height="48dp"
+                android:layout_marginLeft="6dp"
+                android:layout_weight="1"
+                android:background="@drawable/cyber_button_pink"
+                android:text="RETRY"
+                android:textColor="#FFFFFFFF"
+                android:textSize="11sp"
+                android:textStyle="bold" />
+        </LinearLayout>
+
+        <Button
+            android:id="@+id/back_dashboard"
+            android:layout_width="match_parent"
+            android:layout_height="48dp"
+            android:layout_marginTop="10dp"
+            android:background="@drawable/cyber_button_dark"
+            android:text="BACK TO DASHBOARD"
+            android:textColor="#FFD6F8FF"
+            android:textSize="11sp"
+            android:textStyle="bold" />
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="18dp"
+            android:gravity="center"
+            android:text="Keep the target app open while the root runtime attaches."
+            android:textColor="#FF71818A"
+            android:textSize="11sp" />
+    </LinearLayout>
+</ScrollView>
