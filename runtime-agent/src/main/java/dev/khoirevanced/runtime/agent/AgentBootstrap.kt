@@ -15,19 +15,29 @@ object AgentBootstrap {
         runCatching {
             val parsed = RuntimeConfig.parse(File(configPath))
             config = parsed
+            RuntimeDiagnostics.stage(parsed, "config-loaded")
             // The library was originally loaded by the ptrace injector. Load it
             // through this DexClassLoader too, so ART associates JNI methods
             // with the payload's class loader.
             System.load(parsed.agentPath)
+            RuntimeDiagnostics.stage(parsed, "agent-library-loaded")
             val app = waitForApplication(parsed.applicationTimeoutMs)
+            RuntimeDiagnostics.stage(parsed, "application-ready", app.packageName)
             PineHookRuntime.initialize(parsed)
+            RuntimeDiagnostics.stage(parsed, "pine-ready", PineHookRuntime.status)
+            check(PineHookRuntime.status == "pine-xposed-ready") {
+                "Pine ART backend is unavailable: ${PineHookRuntime.status}"
+            }
             NativeHookBackend.initialize(parsed)
+            RuntimeDiagnostics.stage(parsed, "native-backend-ready")
             HookRuntime.install(NativeHookBackend)
             NexAlloyCompatibilityModule.load(app, parsed)
+            RuntimeDiagnostics.stage(parsed, "nexalloy-load-finished", NexAlloyCompatibilityModule.status)
             check(NexAlloyCompatibilityModule.status == "nexalloy-loaded") {
                 "NexAlloy compatibility module did not load: ${NexAlloyCompatibilityModule.status}"
             }
             PatchEntry.start(app, parsed)
+            RuntimeDiagnostics.stage(parsed, "patch-entry-finished")
             RuntimeDiagnostics.record(
                 parsed,
                 state = "ready",

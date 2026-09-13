@@ -144,16 +144,24 @@ launch() {
             status
             return 0
         fi
+        if [ -r "$CACHE_DIR/agent-status.txt" ] &&
+            grep -q '^state=failed$' "$CACHE_DIR/agent-status.txt"; then
+            break
+        fi
         attempt=$((attempt + 1))
     done
     STATUS_QUIET=0
     status || true
+    diagnose_failure
     die "$PACKAGE agent did not become ready"
 }
 
 status() {
     pid=$(main_pid || true)
-    [ -n "$pid" ] || { log "$PACKAGE is not running"; return 1; }
+    [ -n "$pid" ] || {
+        [ "$STATUS_QUIET" = 1 ] || log "$PACKAGE is not running"
+        return 1
+    }
     grep -q 'libkhoirevanced_agent.so' "/proc/$pid/maps" 2>/dev/null && {
         [ "$STATUS_QUIET" = 1 ] || log "$PACKAGE pid=$pid: agent loaded"
         if [ ! -r "$CACHE_DIR/agent-status.txt" ]; then
@@ -169,6 +177,21 @@ status() {
     }
     [ "$STATUS_QUIET" = 1 ] || log "$PACKAGE pid=$pid: agent not loaded"
     return 1
+}
+
+diagnose_failure() {
+    log "$PACKAGE launch failed; collecting runtime diagnostics"
+    [ -r "$CACHE_DIR/agent-stage.txt" ] && cat "$CACHE_DIR/agent-stage.txt"
+    [ -r "$CACHE_DIR/agent-status.txt" ] && cat "$CACHE_DIR/agent-status.txt"
+    if command -v logcat >/dev/null 2>&1; then
+        crash_log="$CACHE_DIR/crash.log"
+        logcat -d -b crash -t 240 2>/dev/null |
+            grep -F "$PACKAGE" > "$crash_log" 2>/dev/null || true
+        if [ -s "$crash_log" ]; then
+            log "--- crash buffer ($PACKAGE) ---"
+            cat "$crash_log"
+        fi
+    fi
 }
 
 watch() {

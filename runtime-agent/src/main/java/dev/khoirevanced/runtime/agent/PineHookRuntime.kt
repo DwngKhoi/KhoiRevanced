@@ -1,5 +1,6 @@
 package dev.khoirevanced.runtime.agent
 
+import android.os.Build
 import android.util.Log
 import top.canyie.pine.Pine
 import top.canyie.pine.PineConfig
@@ -24,6 +25,10 @@ object PineHookRuntime {
         }
 
         runCatching {
+            check(Build.VERSION.SDK_INT < 36) {
+                "Bundled Pine revision is not validated for Android API ${Build.VERSION.SDK_INT}; " +
+                    "use an Android-16-compatible ART backend before enabling hooks"
+            }
             val library = (File(config.agentPath).parentFile ?: error("Invalid agent path"))
                 .resolve("libpine.so")
             require(library.isFile) { "Pine native library is missing: $library" }

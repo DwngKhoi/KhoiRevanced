@@ -23,4 +23,19 @@ object RuntimeDiagnostics {
             )
         }.onFailure { Log.e(TAG, "Could not write runtime diagnostics", it) }
     }
+
+    fun stage(config: RuntimeConfig, name: String, detail: String = "") {
+        val output = File(config.cacheDir, "agent-stage.txt")
+        runCatching {
+            output.parentFile?.mkdirs()
+            output.writeText(
+                "timestamp=${Instant.now()}\n" +
+                    "pid=${Process.myPid()}\n" +
+                    "stage=$name\n" +
+                    "package=${config.packageName}\n" +
+                    "profile=${config.profile}\n" +
+                    "detail=$detail\n"
+            )
+        }.onFailure { Log.e(TAG, "Could not write runtime stage", it) }
+    }
 }
