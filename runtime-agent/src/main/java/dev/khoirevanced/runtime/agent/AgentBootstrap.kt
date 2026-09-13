@@ -35,7 +35,7 @@ object AgentBootstrap {
             )
             Log.i(TAG, "Runtime attached to ${app.packageName}; profile=${parsed.profile}")
         }.onFailure { error ->
-            config?.let { RuntimeDiagnostics.record(it, "failed", error.toString()) }
+            config?.let { RuntimeDiagnostics.record(it, "failed", error.stackTraceToString()) }
             Log.e(TAG, "Agent bootstrap failed", error)
         }
     }

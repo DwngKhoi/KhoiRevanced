@@ -6,7 +6,7 @@ import de.robv.android.xposed.IXposedHookLoadPackage
 import de.robv.android.xposed.IXposedHookZygoteInit
 import de.robv.android.xposed.XposedBridge
 import de.robv.android.xposed.callbacks.XC_LoadPackage
-import top.canyie.pine.xposed.ModuleClassLoader
+import dalvik.system.DexClassLoader
 import java.io.File
 
 /**
@@ -42,12 +42,21 @@ object NexAlloyCompatibilityModule {
             require(module.isFile) { "NexAlloy dexpack is missing: $module" }
             val nativeDir = File(config.agentPath).parentFile?.absolutePath
                 ?: error("Invalid agent path")
-            // Do not use PineXposed.loadModule here: its generic module
-            // validator intentionally rejects a multidex application package
-            // containing compile-time Xposed references. We construct its
-            // documented ModuleClassLoader and dispatch the original entry
-            // interfaces directly, retaining all NexAlloy patch code.
-            val loader = ModuleClassLoader(module.absolutePath, nativeDir, javaClass.classLoader)
+            // The payload is the original NexAlloy APK and contains multiple
+            // dex files. ModuleClassLoader/PathClassLoader does not reliably
+            // discover secondary dex files when the input is a root-managed
+            // payload on Android 16. DexClassLoader handles APK multidex and
+            // still delegates Pine/Xposed compatibility classes to the agent.
+            val optimizedDir = File(config.cacheDir, "nexalloy-dex")
+            require(optimizedDir.mkdirs() || optimizedDir.isDirectory) {
+                "Could not create dex optimization directory: $optimizedDir"
+            }
+            val loader = DexClassLoader(
+                module.absolutePath,
+                optimizedDir.absolutePath,
+                nativeDir,
+                javaClass.classLoader,
+            )
             val entry = loader.loadClass("io.github.nexalloy.MainHook")
                 .getDeclaredConstructor().newInstance()
             val zygoteHook = entry as IXposedHookZygoteInit
@@ -74,7 +83,11 @@ object NexAlloyCompatibilityModule {
             Log.i(TAG, "NexAlloy compatibility patch set loaded")
         }.onFailure { error ->
             System.clearProperty(LOAD_STATE_PROPERTY)
-            status = "nexalloy-failed:${error.javaClass.simpleName}"
+            val causeChain = generateSequence(error) { it.cause }
+                .joinToString(" <- ") {
+                    "${it.javaClass.simpleName}:${it.message ?: "no-message"}"
+                }
+            status = "nexalloy-failed:$causeChain"
             Log.e(TAG, "NexAlloy compatibility patch set failed", error)
         }
     }

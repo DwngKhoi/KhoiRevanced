@@ -19,7 +19,7 @@ object RuntimeDiagnostics {
                     "state=$state\n" +
                     "package=${config.packageName}\n" +
                     "profile=${config.profile}\n" +
-                    "detail=$detail\n"
+                    "detail=${detail.replace("\n", "\\n")}\n"
             )
         }.onFailure { Log.e(TAG, "Could not write runtime diagnostics", it) }
     }
