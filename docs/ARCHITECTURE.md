@@ -1,27 +1,35 @@
-# KhoiRevanced architecture
+# Standalone runtime architecture
 
-KhoiRevanced keeps NexAlloy updates and Android-runtime work on separate merge surfaces.
+## Trust boundary
 
-| Area | Location | Rule |
-|---|---|---|
-| NexAlloy mirror | `app/`, `stub/`, `morphe-patches*` | Keep modifications minimal. |
-| Stable patch API | `runtime-api/` | No Xposed or ART imports. |
-| Process agent | `runtime-agent/` | Loads payload DEX and selects native backend. |
-| Injector | `native/injector/` | arm64 ptrace and remote `dlopen`; no patch logic. |
-| Device UX | `controller/` | Root deployment, profiles and lifecycle. |
+The manager has no privileged Android permission and does not request
+`WRITE_EXTERNAL_STORAGE`, overlay access, or an LSPosed service binding. Its
+only privileged boundary is a short-lived `su -mm -c` process started after
+the user grants root in the root manager.
 
-## Startup
+`RootShell` owns process creation and exit-code handling. `RuntimeAsset` owns
+copying the immutable shell bundle from APK assets. Keeping these operations
+outside `MainActivity` makes the UI replaceable without changing the runtime
+contract.
 
-1. `inject.sh launch youtube` starts the stock package.
-2. The controller copies files to the target package's `code_cache/khoirevanced` and writes a PID config owned by its UID.
-3. The injector attaches with `ptrace`, maps the path and invokes remote `dlopen` for the agent.
-4. The agent creates `DexClassLoader` with host app ClassLoader as parent and calls `AgentBootstrap` from `payload.dex`.
-5. Patches run only after `NativeHookBackend` advertises their required capability.
+## Launch sequence
 
-## Porting rule
+1. Manager runs `id` through `su` and requires both exit code `0` and
+   `uid=0`.
+2. Manager extracts `KhoiRevanced.sh` into its private cache.
+3. The shell controller force-stops the selected target and prepares a
+   root-owned runtime under the target's `code_cache`.
+4. The controller resolves the target launcher, starts it, and selects only
+   the main package process.
+5. The arm64 injector loads `libkhoirevanced_agent.so`.
+6. The agent waits for `Application`, initializes the native hook backend,
+   loads the read-only NexAlloy dexpack, and writes `agent-status.txt`.
+7. Manager closes its task only after the canonical ready state is visible.
 
-Do not add `de.robv.android.xposed.*` below `runtime-api/` or `runtime-agent/`. First adapt a NexAlloy patch to `HookBackend`, then register it from `PatchEntry`.
+## Why the payload is separate
 
-## Current milestone
-
-Injector, DEX bootstrap, process-owned deployment and compatibility API are present. ART method hooking is deliberately disabled until its Android-version test matrix is implemented, so no NexAlloy patch is enabled yet.
+NexAlloy patch code is still being migrated from its historical compatibility
+interfaces. It is therefore built as `:nexalloy-payload`, copied into the
+runtime as data, and never treated as the product APK. This keeps the
+standalone manager independent from LSPosed installation and lets the patch
+layer be replaced without redesigning root process control.

@@ -34,10 +34,10 @@ if ($Rebuild -or -not $existingAgentJar) {
 }
 $moduleApk = Join-Path $root "app\build\outputs\apk\$flavor\app-$flavor.apk"
 if ($Rebuild -or -not (Test-Path $moduleApk)) {
-    & .\gradlew.bat ":app:assemble$Configuration" --no-daemon
-    if ($LASTEXITCODE -ne 0) { throw 'Gradle NexAlloy compatibility build failed.' }
+    & .\gradlew.bat ":nexalloy-payload:assemble$Configuration" --no-daemon
+    if ($LASTEXITCODE -ne 0) { throw 'Gradle NexAlloy payload build failed.' }
 }
-if (-not (Test-Path $moduleApk)) { throw "NexAlloy compatibility APK is missing: $moduleApk" }
+if (-not (Test-Path $moduleApk)) { throw "NexAlloy payload APK is missing: $moduleApk" }
 $buildTools = Get-ChildItem (Join-Path $sdk 'build-tools') -Directory | Sort-Object Name -Descending | Select-Object -First 1
 $d8 = Join-Path $buildTools.FullName 'd8.bat'
 $agentJar = Get-ChildItem "$root\runtime-agent\build\intermediates" -Filter classes.jar -Recurse |

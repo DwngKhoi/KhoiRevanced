@@ -1,113 +1,88 @@
-<div align="center">
-  <h1>NexAlloy</h1>
-  <a href="https://discord.gg/QWUrAA2mKq"><img alt="Discord Server" src="https://img.shields.io/badge/Discord%20Server-5865F2.svg?logo=discord&logoColor=white"></a>
-  <a href="https://t.me/revancedxposed"><img alt="Telegram Channel" src="https://img.shields.io/badge/Telegram_Channel-blue.svg?logo=telegram&logoColor=white"></a>
-  <a href="https://github.com/NexAlloy/NexAlloy/releases/latest"><img alt="GitHub Downloads" src="https://img.shields.io/endpoint?url=https%3A%2F%2Fshields.chsbuffer.workers.dev%2F%3Frepos%3DNexAlloy%2FNexAlloy%26cacheSeconds%3D3600"></a>
-  <a href="https://github.com/NexAlloy/NexAlloy"><img alt="GitHub Stars" src="https://img.shields.io/github/stars/NexAlloy/NexAlloy"></a>  
-  <br>
-</div>
+# KhoiRevanced
 
-## KhoiRevanced root runtime
+KhoiRevanced is a root-managed Android runtime derived from NexAlloy. The
+product is a standalone manager APK that embeds a self-extracting
+`KhoiRevanced.sh` runtime. It does not need LSPosed, an Xposed manager, or a
+module installation step.
 
-KhoiRevanced ships a root-only, direct-injection runtime rather than an
-LSPosed/Xposed module APK. Build the portable payload with:
+## Runtime model
 
-```powershell
-powershell -ExecutionPolicy Bypass -File .\tools\package-runtime.ps1
+```text
+Manager APK
+  └─ assets/KhoiRevanced.sh
+       ├─ root controller (`controller/inject.sh`)
+       ├─ arm64 injector
+       ├─ ART agent + Pine runtime
+       └─ NexAlloy-derived patch dexpack
 ```
 
-This produces `dist\KhoiRevanced.sh`, a self-extracting Android shell bundle:
+The manager requests root through `su`, extracts the shell bundle into its
+private cache, and invokes:
+
+```text
+su -mm -c "sh /data/user/0/com.dwngkhoi.revanced/cache/runtime/KhoiRevanced.sh launch youtube"
+```
+
+The controller starts the selected app, finds its main process, injects the
+native agent, and records readiness under the target app's private
+`code_cache/khoirevanced` directory.
+
+## Project boundaries
+
+- `manager/` — the only installable product APK.
+- `runtime-api/` — stable hook/runtime contracts.
+- `runtime-agent/` — injected ART agent and JNI boundary.
+- `native/injector/` — arm64-v8a ptrace/dlopen injector.
+- `controller/` — root shell controller and target profiles.
+- `app/` (`:nexalloy-payload`) — build-time NexAlloy compatibility payload
+  producer. Its APK is copied into the runtime as a dexpack and is never
+  installed.
+
+The payload producer still compiles upstream compatibility interfaces so that
+the existing patch set can be migrated incrementally. Those interfaces are
+bundled into the runtime payload; the installed manager and root controller do
+not depend on LSPosed.
+
+## Build
+
+Requirements:
+
+- Android Studio JBR / Java 17
+- Android SDK 37
+- NDK `25.2.9519653`
+- arm64-v8a target device with a root manager
+
+Build the manager when an existing `dist/KhoiRevanced.sh` is available:
+
+```powershell
+.\gradlew.bat :manager:assembleDebug --no-daemon
+```
+
+Build the complete runtime bundle and embed it in the manager APK:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\tools\build-manager.ps1
+```
+
+The generated product is:
+
+```text
+manager/build/outputs/apk/debug/manager-debug.apk
+```
+
+For a direct root test without installing the manager:
 
 ```powershell
 adb push .\dist\KhoiRevanced.sh /data/local/tmp/
-adb shell su -c 'sh /data/local/tmp/KhoiRevanced.sh launch youtube'
+adb shell "su -c 'sh /data/local/tmp/KhoiRevanced.sh launch youtube'"
 ```
 
-The runtime contains its injector, `libkhoirevanced_agent.so`, Pine's ART hook
-engine and the Xposed-compatible payload DEX. It also embeds the upstream
-NexAlloy multidex/runtime-resource payload as `nexalloy.dexpack`, which Pine
-loads directly in the target process; it is never installed as an Android APK
-or LSPosed module.
+## Supported profiles
 
-**ChsBuffer's LSPosed module, powered by Morphe, ReVanced, and beyond.**  
-> [!CAUTION]
-> **Migration Notice:** This project has evolved from **ReVancedXposed** to **NexAlloy**. 
-> 
-> **Upgrading:** We’ve kept the original Package ID for your convenience. You can install this as an update, but **you must manually export your settings from the old version and import them into the new one** to keep your configuration.
+- `youtube` — `com.google.android.youtube`
+- `youtube-music` — `com.google.android.apps.youtube.music`
+- `google-photos` — `com.google.android.apps.photos`
 
->[!IMPORTANT]  
-> - This is **NOT an official Morphe or ReVanced project**, do not ask their developers for help.  
-> - **Root access** is strictly **required** to use this module!
-> - **Having issues?** Check the **[FAQ](https://github.com/NexAlloy/NexAlloy/wiki/Frequently-Asked-Questions)** before reporting.
-
-## Downloads
-- **Release build**: [Download](https://github.com/NexAlloy/NexAlloy/releases/latest)
-- **Nightly build**: [Download](https://nightly.link/NexAlloy/NexAlloy/workflows/android/main)
-
-<sub>If you've joined the YouTube beta program, please try the nightly build before reporting an issue.</sub>
-
-## Patches
-
-### YouTube
-- Remove ads
-- SponsorBlock
-- Remove background playback restrictions
-- Remove share links tracking query parameter
-- Hide and change navigation buttons
-- Swipe controls
-- Remember video quality changes
-- Show video quality button
-- Show advanced video quality menu
-- Copy video url video player button
-- Open external downloader app
-- Custom playback speed
-- Remember playback speed
-- Playback speed dialog button
-- Hide layout components
-- Hide video action buttons
-- Disable Shorts resuming on startup
-- Disable video codecs
-- Disable auto captions
-- Alternative thumbnails
-- Bypass image region restrictions
-
-### YouTube Music
-- Remove music video ads
-- Remove background playback restrictions
-- Hide upgrade button
-- Hide 'Get Music Premium' label
-- Enable exclusive audio playback
-
-### Reddit
-- Hide ads
-- Sanitize sharing links
-
-### Google Photos
-- Spoof Pixel XL
-
-### Photomath
-- Unlock plus
-
-### Instagram
-- Hide ads
-
-### Threads
-- Hide ads
-
-### Strava
-- Unlock subscription features
-- Disable subscription suggestions
-
-### AllTrails
-- Enable Peak membership
-
-## Supports
-[![Discord Server](https://img.shields.io/badge/Join-Discord-5865F2.svg?logo=discord)](https://discord.gg/QWUrAA2mKq)  
-[![FAQ](https://img.shields.io/badge/Read-FAQ-orange.svg?logo=github)](https://github.com/NexAlloy/NexAlloy/wiki/Frequently-Asked-Questions)  
-or [Create an issue](https://github.com/NexAlloy/NexAlloy/issues/new/choose)
-
-## ⭐ Credits
-
-[DexKit](https://luckypray.org/DexKit/en/): a high-performance dex runtime parsing library.  
-[Morphe](https://morphe.software): Transform Your Android Apps  
-[ReVanced](https://revanced.app): Continuing the legacy of Vanced at [revanced.app](https://revanced.app)
+The current target is arm64-v8a, matching the OnePlus Ace 6T / OxygenOS 16
+development device. Additional ABIs should be added only after the injector,
+agent library, and packaging pipeline are tested together.
