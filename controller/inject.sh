@@ -20,6 +20,7 @@ PROFILE_FILE="$PROFILE_DIR/$PROFILE.conf"
 . "$PROFILE_FILE"
 : "${PACKAGE:?PROFILE must set PACKAGE}"
 APPLICATION_TIMEOUT_MS=${APPLICATION_TIMEOUT_MS:-15000}
+STATUS_QUIET=0
 
 APP_DATA="/data/user/0/$PACKAGE"
 RUNTIME_DIR="$APP_DATA/code_cache/khoirevanced"
@@ -135,11 +136,18 @@ launch() {
     # The injector reports only that dlopen succeeded.  Wait for its mapped
     # agent and emit the canonical status line the Manager uses as success.
     attempt=0
+    STATUS_QUIET=1
     while [ "$attempt" -lt 15 ]; do
         sleep 1
-        if status; then return 0; fi
+        if status; then
+            STATUS_QUIET=0
+            status
+            return 0
+        fi
         attempt=$((attempt + 1))
     done
+    STATUS_QUIET=0
+    status || true
     die "$PACKAGE agent did not become ready"
 }
 
@@ -147,19 +155,19 @@ status() {
     pid=$(main_pid || true)
     [ -n "$pid" ] || { log "$PACKAGE is not running"; return 1; }
     grep -q 'libkhoirevanced_agent.so' "/proc/$pid/maps" 2>/dev/null && {
-        log "$PACKAGE pid=$pid: agent loaded"
+        [ "$STATUS_QUIET" = 1 ] || log "$PACKAGE pid=$pid: agent loaded"
         if [ ! -r "$CACHE_DIR/agent-status.txt" ]; then
-            log "$PACKAGE pid=$pid: agent is still starting"
+            [ "$STATUS_QUIET" = 1 ] || log "$PACKAGE pid=$pid: agent is still starting"
             return 1
         fi
-        cat "$CACHE_DIR/agent-status.txt"
+        [ "$STATUS_QUIET" = 1 ] || cat "$CACHE_DIR/agent-status.txt"
         grep -q "^pid=$pid$" "$CACHE_DIR/agent-status.txt" &&
             grep -q '^state=ready$' "$CACHE_DIR/agent-status.txt" &&
             grep -q 'module=nexalloy-loaded' "$CACHE_DIR/agent-status.txt" && return 0
-        log "$PACKAGE pid=$pid: NexAlloy runtime is not ready"
+        [ "$STATUS_QUIET" = 1 ] || log "$PACKAGE pid=$pid: NexAlloy runtime is not ready"
         return 1
     }
-    log "$PACKAGE pid=$pid: agent not loaded"
+    [ "$STATUS_QUIET" = 1 ] || log "$PACKAGE pid=$pid: agent not loaded"
     return 1
 }
 

@@ -8,6 +8,8 @@ import de.robv.android.xposed.XposedBridge
 import de.robv.android.xposed.callbacks.XC_LoadPackage
 import dalvik.system.DexClassLoader
 import java.io.File
+import java.io.FileOutputStream
+import java.util.zip.ZipFile
 
 /**
  * Runs the upstream NexAlloy patch code in the injected process through
@@ -42,17 +44,27 @@ object NexAlloyCompatibilityModule {
             require(module.isFile) { "NexAlloy dexpack is missing: $module" }
             val nativeDir = File(config.agentPath).parentFile?.absolutePath
                 ?: error("Invalid agent path")
-            // The payload is the original NexAlloy APK and contains multiple
-            // dex files. ModuleClassLoader/PathClassLoader does not reliably
-            // discover secondary dex files when the input is a root-managed
-            // payload on Android 16. DexClassLoader handles APK multidex and
-            // still delegates Pine/Xposed compatibility classes to the agent.
-            val optimizedDir = File(config.cacheDir, "nexalloy-dex")
-            require(optimizedDir.mkdirs() || optimizedDir.isDirectory) {
-                "Could not create dex optimization directory: $optimizedDir"
+            // Android 16 can expose a root-managed APK to DexClassLoader while
+            // still skipping secondary dex entries. Extract every classes*.dex
+            // explicitly and pass the raw dex list to the loader. The original
+            // APK is retained as modulePath for ResourcesProvider/addModuleAssets.
+            val dexRoot = File(config.cacheDir, "nexalloy-dex")
+            val inputDir = dexRoot.resolve("input")
+            val optimizedDir = dexRoot.resolve("optimized")
+            require(inputDir.mkdirs() || inputDir.isDirectory) {
+                "Could not create dex input directory: $inputDir"
             }
+            require(optimizedDir.mkdirs() || optimizedDir.isDirectory) {
+                "Could not create dex optimized directory: $optimizedDir"
+            }
+            val dexFiles = extractDexFiles(module, inputDir)
+            require(dexFiles.isNotEmpty()) {
+                "NexAlloy payload has no classes*.dex entries: $module"
+            }
+            val dexPath = dexFiles.joinToString(File.pathSeparator) { it.absolutePath }
+            Log.i(TAG, "Loading NexAlloy payload: dexCount=${dexFiles.size} dexPath=$dexPath")
             val loader = DexClassLoader(
-                module.absolutePath,
+                dexPath,
                 optimizedDir.absolutePath,
                 nativeDir,
                 javaClass.classLoader,
@@ -89,6 +101,26 @@ object NexAlloyCompatibilityModule {
                 }
             status = "nexalloy-failed:$causeChain"
             Log.e(TAG, "NexAlloy compatibility patch set failed", error)
+        }
+    }
+
+    private fun extractDexFiles(module: File, inputDir: File): List<File> {
+        val dexPattern = Regex("""classes(\d*)\.dex""")
+        return ZipFile(module).use { zip ->
+            zip.entries().asSequence()
+                .filter { !it.isDirectory && dexPattern.matches(it.name) }
+                .sortedWith(compareBy {
+                    dexPattern.matchEntire(it.name)?.groupValues?.get(1)
+                        ?.takeIf(String::isNotEmpty)?.toInt() ?: 1
+                })
+                .map { entry ->
+                    val destination = inputDir.resolve(entry.name)
+                    zip.getInputStream(entry).use { input ->
+                        FileOutputStream(destination, false).use { output -> input.copyTo(output) }
+                    }
+                    destination
+                }
+                .toList()
         }
     }
 }
