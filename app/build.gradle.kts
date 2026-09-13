@@ -153,7 +153,10 @@ dependencies {
     testImplementation(libs.jadx.core)
     testImplementation(libs.slf4j.simple)
     debugImplementation(kotlin("reflect"))
-    compileOnly(libs.xposed)
+    // The standalone runtime ships Pine's Xposed-compat API. Compile the
+    // payload against the exact same API jar instead of resolving
+    // de.robv.android.xposed:api from the retired remote repository.
+    compileOnly(files("../third_party/pine-libs/pine-xposed.jar"))
     compileOnly(libs.libxposed.api)
     implementation(libs.libxposed.service)
 //    implementation(project(":extensions"))

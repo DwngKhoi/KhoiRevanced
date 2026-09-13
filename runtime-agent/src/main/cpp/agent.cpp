@@ -85,6 +85,7 @@ bool clear_exception(JNIEnv* env, const char* stage) {
 }
 
 void bootstrap() {
+    __android_log_print(ANDROID_LOG_INFO, kTag, "bootstrap thread started in pid %d", getpid());
     JavaVM* vm = wait_for_vm();
     if (vm == nullptr) {
         log_error("JNI VM was not found");
@@ -107,9 +108,11 @@ void bootstrap() {
 
     // payload.dex is next to the injected library in the runtime directory.
     const std::string config = config_path();
+    __android_log_print(ANDROID_LOG_INFO, kTag, "using config %s", config.c_str());
     FILE* fp = fopen(config.c_str(), "r");
     if (fp == nullptr) {
-        log_error("Per-process config file is missing");
+        __android_log_print(ANDROID_LOG_ERROR, kTag,
+                            "per-process config file is missing: %s", config.c_str());
         if (attached) vm->DetachCurrentThread();
         return;
     }
@@ -122,6 +125,8 @@ void bootstrap() {
         return;
     }
     fclose(fp);
+    __android_log_print(ANDROID_LOG_INFO, kTag, "config parsed dex=%s cache=%s",
+                        dex_path, cache_path);
 
     jclass activity_thread = env->FindClass("android/app/ActivityThread");
     if (clear_exception(env, "ActivityThread lookup") || activity_thread == nullptr) {
@@ -159,6 +164,7 @@ void bootstrap() {
         if (attached) vm->DetachCurrentThread();
         return;
     }
+    __android_log_print(ANDROID_LOG_INFO, kTag, "Application is ready in pid %d", getpid());
 
     jclass context = env->FindClass("android/content/Context");
     jmethodID get_loader = env->GetMethodID(context, "getClassLoader", "()Ljava/lang/ClassLoader;");
@@ -192,12 +198,17 @@ void bootstrap() {
         if (attached) vm->DetachCurrentThread();
         return;
     }
+    __android_log_print(ANDROID_LOG_INFO, kTag, "AgentBootstrap class loaded");
 
     jmethodID start = env->GetStaticMethodID(
         bootstrap_class, "start", "(Ljava/lang/String;)V");
     jstring config_string = env->NewStringUTF(config.c_str());
     env->CallStaticVoidMethod(bootstrap_class, start, config_string);
-    clear_exception(env, "AgentBootstrap.start");
+    if (clear_exception(env, "AgentBootstrap.start")) {
+        log_error("AgentBootstrap.start threw; Java diagnostics should contain the cause");
+    } else {
+        __android_log_print(ANDROID_LOG_INFO, kTag, "AgentBootstrap.start returned");
+    }
 
     if (attached) vm->DetachCurrentThread();
 }

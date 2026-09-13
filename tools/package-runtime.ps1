@@ -32,12 +32,22 @@ if ($Rebuild -or -not $existingAgentJar) {
     & .\gradlew.bat ":runtime-agent:assemble$Configuration" --no-daemon
     if ($LASTEXITCODE -ne 0) { throw 'Gradle runtime build failed.' }
 }
-$moduleApk = Join-Path $root "app\build\outputs\apk\$flavor\app-$flavor.apk"
+$moduleApk = Join-Path $root "app\build\outputs\apk\$flavor\nexalloy-payload-$flavor.apk"
 if ($Rebuild -or -not (Test-Path $moduleApk)) {
     & .\gradlew.bat ":nexalloy-payload:assemble$Configuration" --no-daemon
     if ($LASTEXITCODE -ne 0) { throw 'Gradle NexAlloy payload build failed.' }
 }
-if (-not (Test-Path $moduleApk)) { throw "NexAlloy payload APK is missing: $moduleApk" }
+if (-not (Test-Path $moduleApk)) {
+    # AGP 9 names the artifact after the Gradle project. Resolve the first
+    # APK as a fallback so packaging remains compatible with older AGP output
+    # names as well.
+    $moduleApk = Get-ChildItem (Join-Path $root "app\build\outputs\apk\$flavor") `
+        -Filter '*.apk' -File -ErrorAction SilentlyContinue |
+        Select-Object -First 1 -ExpandProperty FullName
+}
+if (-not $moduleApk -or -not (Test-Path $moduleApk)) {
+    throw "NexAlloy payload APK is missing under app/build/outputs/apk/$flavor."
+}
 $buildTools = Get-ChildItem (Join-Path $sdk 'build-tools') -Directory | Sort-Object Name -Descending | Select-Object -First 1
 $d8 = Join-Path $buildTools.FullName 'd8.bat'
 $agentJar = Get-ChildItem "$root\runtime-agent\build\intermediates" -Filter classes.jar -Recurse |

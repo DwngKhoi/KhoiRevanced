@@ -26,8 +26,8 @@ object PineHookRuntime {
 
         runCatching {
             check(Build.VERSION.SDK_INT < 36) {
-                "Bundled Pine revision is not validated for Android API ${Build.VERSION.SDK_INT}; " +
-                    "use an Android-16-compatible ART backend before enabling hooks"
+                "legacy-pine-unsupported-api:${Build.VERSION.SDK_INT}; " +
+                    "an Android-16-compatible ART backend is required"
             }
             val library = (File(config.agentPath).parentFile ?: error("Invalid agent path"))
                 .resolve("libpine.so")
@@ -39,7 +39,11 @@ object PineHookRuntime {
             status = "pine-xposed-ready"
             Log.i(TAG, "Pine Xposed-compat runtime is ready")
         }.onFailure { error ->
-            status = "pine-unavailable:${error.javaClass.simpleName}"
+            val detail = generateSequence(error) { it.cause }
+                .joinToString(" <- ") {
+                    "${it.javaClass.simpleName}:${it.message ?: "no-message"}"
+                }
+            status = "pine-unavailable:$detail"
             Log.e(TAG, "Pine initialization failed; preserving non-hook runtime", error)
         }
     }

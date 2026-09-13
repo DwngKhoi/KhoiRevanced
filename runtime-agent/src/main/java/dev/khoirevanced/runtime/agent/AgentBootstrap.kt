@@ -16,6 +16,8 @@ object AgentBootstrap {
             val parsed = RuntimeConfig.parse(File(configPath))
             config = parsed
             RuntimeDiagnostics.stage(parsed, "config-loaded")
+            Log.i(TAG, "bootstrap pid=${android.os.Process.myPid()} package=${parsed.packageName} " +
+                "profile=${parsed.profile} agent=${parsed.agentPath} module=${parsed.modulePath}")
             // The library was originally loaded by the ptrace injector. Load it
             // through this DexClassLoader too, so ART associates JNI methods
             // with the payload's class loader.
@@ -31,6 +33,7 @@ object AgentBootstrap {
             NativeHookBackend.initialize(parsed)
             RuntimeDiagnostics.stage(parsed, "native-backend-ready")
             HookRuntime.install(NativeHookBackend)
+            RuntimeDiagnostics.stage(parsed, "nexalloy-loading", parsed.modulePath ?: "none")
             NexAlloyCompatibilityModule.load(app, parsed)
             RuntimeDiagnostics.stage(parsed, "nexalloy-load-finished", NexAlloyCompatibilityModule.status)
             check(NexAlloyCompatibilityModule.status == "nexalloy-loaded") {
@@ -45,7 +48,11 @@ object AgentBootstrap {
             )
             Log.i(TAG, "Runtime attached to ${app.packageName}; profile=${parsed.profile}")
         }.onFailure { error ->
-            config?.let { RuntimeDiagnostics.record(it, "failed", error.stackTraceToString()) }
+            config?.let {
+                RuntimeDiagnostics.stage(it, "bootstrap-failed",
+                    "${error.javaClass.name}:${error.message ?: "no-message"}")
+                RuntimeDiagnostics.record(it, "failed", error.stackTraceToString())
+            }
             Log.e(TAG, "Agent bootstrap failed", error)
         }
     }

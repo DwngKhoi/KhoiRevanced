@@ -73,6 +73,28 @@ main_pid() {
     done
     return 1
 }
+
+pid_is_main_process() {
+    candidate=$1
+    [ -d "/proc/$candidate" ] || return 1
+    process=$(tr '\000' ' ' < "/proc/$candidate/cmdline" 2>/dev/null || true)
+    case "$process" in
+        "$PACKAGE"|"$PACKAGE "*) return 0 ;;
+        *) return 1 ;;
+    esac
+}
+
+wait_for_process_exit() {
+    attempt=0
+    while [ "$attempt" -lt 200 ]; do
+        pid=$(main_pid || true)
+        [ -z "$pid" ] && return 0
+        attempt=$((attempt + 1))
+        sleep 0.05
+    done
+    return 1
+}
+
 wait_for_pid() {
     # Poll fast enough to attach before the launcher Activity inflates its
     # player hierarchy. A one-second poll lets most of YouTube finish startup,
@@ -85,6 +107,28 @@ wait_for_pid() {
         sleep 0.05
     done
     die "timed out waiting for $PACKAGE"
+}
+
+wait_for_ready_pid() {
+    target_pid=$1
+    attempt=0
+    while [ "$attempt" -lt 30 ]; do
+        if [ -r "$CACHE_DIR/agent-status.txt" ] &&
+            grep -q "^pid=$target_pid$" "$CACHE_DIR/agent-status.txt" &&
+            grep -q '^state=ready$' "$CACHE_DIR/agent-status.txt" &&
+            grep -q 'module=nexalloy-loaded' "$CACHE_DIR/agent-status.txt"; then
+            return 0
+        fi
+
+        # A process can exit immediately after dlopen. Keep the status file
+        # visible instead of replacing the useful failure with "not running".
+        if ! pid_is_main_process "$target_pid"; then
+            return 1
+        fi
+        sleep 1
+        attempt=$((attempt + 1))
+    done
+    return 1
 }
 
 write_config() {
@@ -116,6 +160,9 @@ inject() {
 
 launch() {
     am force-stop "$PACKAGE"
+    # force-stop is asynchronous on some OxygenOS builds. Do not select the
+    # old process while ActivityManager is still tearing it down.
+    wait_for_process_exit || die "$PACKAGE did not stop cleanly"
     # Never reuse an ART/DexClassLoader cache from an older embedded payload.
     # This also removes stale hook status and makes Manager launches identical
     # to the clean ADB deployment path.
@@ -135,23 +182,18 @@ launch() {
     "$RUNTIME_DIR/khoirevanced-injector" "$pid" "$RUNTIME_DIR/libkhoirevanced_agent.so"
     # The injector reports only that dlopen succeeded.  Wait for its mapped
     # agent and emit the canonical status line the Manager uses as success.
-    attempt=0
     STATUS_QUIET=1
-    while [ "$attempt" -lt 15 ]; do
-        sleep 1
-        if status; then
-            STATUS_QUIET=0
-            status
-            return 0
-        fi
-        if [ -r "$CACHE_DIR/agent-status.txt" ] &&
-            grep -q '^state=failed$' "$CACHE_DIR/agent-status.txt"; then
-            break
-        fi
-        attempt=$((attempt + 1))
-    done
+    if wait_for_ready_pid "$pid"; then
+        STATUS_QUIET=0
+        status
+        return 0
+    fi
     STATUS_QUIET=0
-    status || true
+    if [ -r "$CACHE_DIR/agent-status.txt" ]; then
+        cat "$CACHE_DIR/agent-status.txt"
+    else
+        log "$PACKAGE pid=$pid: agent produced no Java status"
+    fi
     diagnose_failure
     die "$PACKAGE agent did not become ready"
 }
