@@ -9,4 +9,5 @@ local.properties
 # Signing and secrets
 *.jks
 *.keystore
-signing.properties
+signing.properties.cxx/
+**/.cxx/
