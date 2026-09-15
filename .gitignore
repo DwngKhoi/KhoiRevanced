@@ -1,0 +1,12 @@
+﻿# Ignore Android/Gradle output
+.gradle/
+build/
+**/build/
+local.properties
+*.iml
+.idea/
+
+# Signing and secrets
+*.jks
+*.keystore
+signing.properties
