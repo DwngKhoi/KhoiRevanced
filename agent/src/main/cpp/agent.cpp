@@ -10,7 +10,7 @@
 
 extern "C" JNIEXPORT jstring JNICALL
 Java_com_dwngkhoi_khoirevanced_AgentDiagnostics_nativeAgentVersion(JNIEnv* env, jclass) {
-    return env->NewStringUTF("khoirevanced-agent/0.2.0 arm64-v8a");
+    return env->NewStringUTF("khoirevanced-agent/0.3.0 arm64-v8a");
 }
 
 extern "C" JNIEXPORT jboolean JNICALL
@@ -22,7 +22,7 @@ Java_com_dwngkhoi_khoirevanced_AgentDiagnostics_nativeWriteMarker(JNIEnv* env, j
         env->ReleaseStringUTFChars(path, markerPath);
         return JNI_FALSE;
     }
-    fprintf(file, "agent_loaded pid=%d\\n", getpid());
+    fprintf(file, "agent_loaded pid=%d\n", getpid());
     fclose(file);
     chmod(markerPath, 0600);
     env->ReleaseStringUTFChars(path, markerPath);

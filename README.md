@@ -1,32 +1,49 @@
 # KhoiRevanced
 
-KhoiRevanced is a root-only Android manager with a bundled, restricted shell runtime and an `arm64-v8a` **diagnostic ART agent**. It is standalone: it does not depend on LSPosed, an Xposed manager, or Xposed module metadata.
+KhoiRevanced is a **standalone** root-only Android manager APK. It does **not** depend on LSPosed, an Xposed manager, or Xposed module metadata.
 
-## Current scope
+It extracts a restricted shell runtime into app-private storage and runs **allow-listed** actions and bundled `.sh` scripts only after a root manager grants `su`.
 
-- The manager requests root with `su`, extracts its runtime into private app storage, and invokes only allow-listed actions: `doctor`, `install`, `status`, `logs`, `stop`, `launch <profile>`.
-- The native `libkhoirevanced_agent.so` is packaged for `arm64-v8a` and exposes `Agent_OnAttach` / `Agent_OnLoad` lifecycle entry points for ART/JVMTI diagnostics.
-- Launch uses Android's `am start-activity --attach-agent` only after strict checks for root, ABI, SDK, agent file and an owned **debuggable** test target.
-- The bundled `example-debug` profile is a template; its package/activity are placeholders and cannot target any production app.
+Inspired by [NexAlloy](https://github.com/nexalloy/NexAlloy) as motivation for a no-LSPosed workflow — this is an independent clean-room implementation (see [NOTICE.md](NOTICE.md)).
+
+## Target device (developer context)
+
+- OnePlus Ace 6T
+- OxygenOS `16.0.10.500` (and related OPlus builds)
+- ABI: `arm64-v8a`
+
+`doctor` and the `device-info` script print model / OTA / OxygenOS-related props so you can confirm the phone before running other allow-listed scripts.
+
+## What it does
+
+| Action | Purpose |
+|--------|---------|
+| `doctor` | Root + device fingerprint (ABI, SDK, model, OOS/ColorOS props) |
+| `install` | Verify runtime assets (agent + scripts) after extract |
+| `status` | Show runtime paths and allow-lists |
+| `script <id>` | Run a **bundled** allow-listed `.sh` (`hello`, `device-info`) |
+| `logs` / `stop` | Read runtime log / no-op cleanup note |
+| `launch <profile>` | Optional ART attach-agent for an **owned debuggable** test app only |
+
+### Bundled scripts
+
+Scripts live under [`manager/src/main/assets/runtime/scripts/`](manager/src/main/assets/runtime/scripts/):
+
+- `hello` — smoke test under root
+- `device-info` — OnePlus / OxygenOS fingerprint dump
+
+The Java layer and `khoirevanced.sh` both enforce the same allow-list. The UI never accepts free-form shell.
+
+## Security boundaries
+
+- Root required; failure is explicit.
+- No LSPosed / Xposed hooks or module metadata.
+- No arbitrary user-typed shell; only allow-listed actions and script IDs.
+- ART `--attach-agent` only after a `DEBUGGABLE` check; non-debuggable targets are refused.
+- Does not bypass SELinux, rewrite system properties, modify system partitions, or inject into arbitrary production apps.
 
 > [!IMPORTANT]
-> Android's supported ART Tooling Interface permits agent attachment only to apps marked `android:debuggable="true"`. KhoiRevanced deliberately refuses non-debuggable targets. It does not bypass this requirement, alter SELinux/system properties, modify system partitions, hook arbitrary methods, or change another app's data/entitlements.
-
-## Configure your test app
-
-Edit [`example-debug.properties`](manager/src/main/assets/runtime/profiles/example-debug.properties) with an app you own and can build as debuggable:
-
-```properties
-id=example-debug
-package=com.example.khoirevanced.target
-activity=com.example.khoirevanced.target/.MainActivity
-abi=arm64-v8a
-min_sdk=27
-debuggable_required=true
-agent_library=lib/arm64-v8a/libkhoirevanced_agent.so
-```
-
-Then build/install KhoiRevanced, grant root, choose **Install runtime**, then **Launch example debug profile**. Examine the in-app runtime output and `logcat` tag `KhoiRevancedAgent`.
+> This APK is a **root shell manager + diagnostics**, not a drop-in NexAlloy/ReVanced patch engine. Magisk/Zygisk-style app patching is out of scope for this tree.
 
 ## Build
 
@@ -34,15 +51,15 @@ Then build/install KhoiRevanced, grant root, choose **Install runtime**, then **
 .\gradlew.bat :manager:lintDebug :manager:testDebugUnitTest :manager:assembleDebug
 ```
 
-The resulting debug APK is at `manager/build/outputs/apk/debug/manager-debug.apk`.
+Debug APK: `manager/build/outputs/apk/debug/manager-debug.apk`.
 
-## Security boundaries
+## On-device flow
 
-- No broad storage permission is requested.
-- The UI never accepts user-provided shell fragments; profile IDs are allow-listed.
-- Runtime artifacts are restricted to `/data/local/tmp/khoirevanced` and app-private storage.
-- Root is required and failure is explicit; no fallback injection mechanism exists.
+1. Install the APK on the Ace 6T (or another arm64 rooted device).
+2. Open KhoiRevanced → grant root when your root manager prompts.
+3. **Install runtime** → **Check root / doctor** → **Run script: device-info**.
+4. (Optional) Point `example-debug.properties` at an app **you own** and build as debuggable, then **Launch example debug profile**.
 
 ## License and provenance
 
-This is an independent root-shell manager and diagnostic agent implementation. It does not bundle NexAlloy/Xposed code or metadata. NexAlloy is acknowledged as the project that motivated this reimplementation; this does not imply endorsement by its authors.
+Independent root-shell manager and diagnostic agent. It does not bundle NexAlloy/Xposed code or patch payloads. NexAlloy motivated the standalone direction; that does not imply endorsement by its authors.

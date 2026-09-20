@@ -1,6 +1,6 @@
 # Notice
 
-KhoiRevanced is an independent, clean-room root shell manager. It does not bundle code, Xposed metadata, or patch payloads from NexAlloy.
+KhoiRevanced is an independent, clean-room root shell manager and diagnostic APK. It does not bundle code, Xposed metadata, or patch payloads from NexAlloy.
 
 NexAlloy: https://github.com/nexalloy/NexAlloy
 
