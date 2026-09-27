@@ -11,8 +11,11 @@ import dev.khoirevanced.runtime.api.MethodHookCallback
 import io.github.libxposed.api.XposedInterface
 import java.io.File
 import java.io.FileNotFoundException
+import java.lang.invoke.MethodHandle
+import java.lang.invoke.MethodHandles
 import java.lang.reflect.Constructor
 import java.lang.reflect.Executable
+import java.lang.reflect.Field
 import java.lang.reflect.Member
 import java.lang.reflect.Method
 import java.lang.reflect.Modifier
@@ -162,10 +165,100 @@ object StandaloneXposedInterface : XposedInterface {
             return method.invoke(receiver, *args)
         }
 
+        /**
+         * A genuine `invokespecial` on the superclass implementation.
+         *
+         * Reflection alone cannot do this. `Method.invoke` performs virtual
+         * dispatch, so invoking the superclass's `onCreate` on a LicenseActivity
+         * calls `LicenseActivity.onCreate` -- the very method this patch replaced
+         * -- which re-enters the hook and recurses until the stack overflows.
+         * That is exactly what happened before this was fixed.
+         *
+         * `unreflectSpecial` is the supported way to bypass that dispatch, but
+         * obtaining it requires a `Lookup` with privileges over the declaring
+         * class, and `privateLookupIn` is refused for framework classes on
+         * Android. `MethodHandles.Lookup.IMPL_LOOKUP` has those privileges, so
+         * it is read out through `sun.misc.Unsafe` the same way StaticFields
+         * already does for static final writes.
+         */
         override fun invokeSpecial(receiver: Any, vararg args: Any?): Any? {
             val target = resolveSuperMethod(method, receiver) ?: method
+            val special = specialInvoker(target, receiver)
+            if (special != null) {
+                target.isAccessible = true
+                return if (args.isEmpty()) special.invokeWithArguments()
+                else special.invokeWithArguments(*args)
+            }
+            // No privileged Lookup. Fall back to a single-level call guarded
+            // against re-entry, which degrades the patch instead of looping.
+            if (!Reentrancy.enter(target)) {
+                throw IllegalStateException(
+                    "Re-entered super call for ${target.declaringClass?.name}.${target.name} " +
+                        "and no privileged Lookup is available to bypass dispatch",
+                )
+            }
+            try {
+                target.isAccessible = true
+                return target.invoke(receiver, *args)
+            } finally {
+                Reentrancy.exit(target)
+            }
+        }
+    }
+
+    /**
+     * Per-thread guard against a super call re-entering itself. A stack overflow
+     * inside an Activity's onCreate is not a recoverable failure, so the fallback
+     * path refuses to recurse rather than trying again.
+     */
+    private object Reentrancy {
+        private val active = ThreadLocal.withInitial { mutableSetOf<Method>() }
+
+        fun enter(method: Method): Boolean = active.get()!!.add(method)
+        fun exit(method: Method) { active.get()!!.remove(method) }
+    }
+
+    /**
+     * Build an invokespecial bound handle for [target] on [receiver], or null
+     * when the privileged `IMPL_LOOKUP` cannot be obtained on this runtime.
+     */
+    private fun specialInvoker(target: Method, receiver: Any): MethodHandle? {
+        val implLookup = privilegedLookup ?: return null
+        return runCatching {
             target.isAccessible = true
-            return target.invoke(receiver, *args)
+            // specialCaller must be the subclass whose super call this is, which
+            // is the receiver's own class.
+            implLookup.unreflectSpecial(target, receiver.javaClass).bindTo(receiver)
+        }.getOrElse { error ->
+            RuntimeLog.warn("invoker", "unreflectSpecial failed: ${error.javaClass.simpleName}: ${error.message}")
+            null
+        }
+    }
+
+    /**
+     * `MethodHandles.Lookup.IMPL_LOOKUP`, read through `sun.misc.Unsafe`.
+     * Null on a runtime that refuses, in which case the caller degrades.
+     */
+    private val privilegedLookup: MethodHandles.Lookup? by lazy {
+        runCatching {
+            val unsafeClass = Class.forName("sun.misc.Unsafe")
+            val unsafe = unsafeClass.getDeclaredField("theUnsafe").run {
+                isAccessible = true
+                get(null)
+            }
+            val lookupClass = Class.forName("java.lang.invoke.MethodHandles\$Lookup")
+            val implField = lookupClass.getDeclaredField("IMPL_LOOKUP").apply { isAccessible = true }
+            val base = unsafeClass.getMethod("staticFieldBase", Field::class.java)
+                .invoke(unsafe, implField) as java.lang.reflect.Field
+            val offset = unsafeClass.getMethod("staticFieldOffset", Field::class.java)
+                .invoke(unsafe, implField) as Long
+            val getObject = unsafeClass.getMethod(
+                "getObject", java.lang.Object::class.java, java.lang.Long.TYPE,
+            )
+            getObject.invoke(unsafe, base, offset) as MethodHandles.Lookup
+        }.getOrElse { error ->
+            RuntimeLog.warn("invoker", "IMPL_LOOKUP unavailable: ${error.javaClass.simpleName}: ${error.message}")
+            null
         }
     }
 

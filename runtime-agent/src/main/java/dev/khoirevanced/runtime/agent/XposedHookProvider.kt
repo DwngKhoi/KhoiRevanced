@@ -119,6 +119,11 @@ internal object XposedHookProvider : XposedBridge.HookProvider {
                     // Xposed isolates callback failures: log and continue with the
                     // state the previous callback left behind.
                     XposedBridge.log(error)
+                    RuntimeLog.error(
+                        "hook-before",
+                        "${member.declaringClass?.name}.${member.name} threw",
+                        error,
+                    )
                     xposedParam.restore(previousResult, previousThrowable)
                 }
                 completed = index
@@ -152,6 +157,11 @@ internal object XposedHookProvider : XposedBridge.HookProvider {
                         afterCallback.invokeCallback(state.callbacks[index], state.param)
                     } catch (error: Throwable) {
                         XposedBridge.log(error)
+                        RuntimeLog.error(
+                            "hook-after",
+                            "${member.declaringClass?.name}.${member.name} threw",
+                            error,
+                        )
                         state.param.restore(previousResult, previousThrowable)
                     }
                 }
