@@ -4,6 +4,13 @@
 # correct regardless of the contributor's core.autocrlf setting.
 *.sh text eol=lf
 
+  # Profiles are sourced by /system/bin/sh at runtime, so they need LF for the
+  # same reason. A CRLF checkout puts a trailing \r inside every value, which
+  # the shell keeps as part of the value, so PACKAGE stops matching any
+  # package or directory. *.sh alone did not cover *.conf, so Windows checkouts
+  # shipped profiles the controller could not read.
+  *.conf text eol=lf
+
 # Keep the vendored prebuilt binaries and jars untouched.
 *.so binary
 *.a binary

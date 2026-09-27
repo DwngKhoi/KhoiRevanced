@@ -17,7 +17,23 @@ COMMAND=$1
 PROFILE=$2
 PROFILE_FILE="$PROFILE_DIR/$PROFILE.conf"
 [ -r "$PROFILE_FILE" ] || die "unknown profile: $PROFILE"
-. "$PROFILE_FILE"
+
+# Source a CR-stripped copy of the profile. A profile checked out with CRLF
+# carries a trailing \r on every value, and the shell keeps it as part of the
+# value rather than treating it as end of line: PACKAGE becomes
+# "com.google.android.youtube\r", which matches neither an installed package nor
+# an existing data directory, so every later check fails in a way that reads as
+# "the app is not installed". APPLICATION_TIMEOUT_MS picks up "15000\r" the same
+# way and then fails when used as a number. Strip the CR here so a profile
+# behaves identically however it was checked out, and so a user-supplied profile
+# cannot fail the same silent way.
+CLEAN_PROFILE=$(mktemp /data/local/tmp/khoirevanced-profile.XXXXXX)
+trap 'rm -f "$CLEAN_PROFILE"' EXIT
+tr -d '\r' < "$PROFILE_FILE" > "$CLEAN_PROFILE"
+. "$CLEAN_PROFILE"
+rm -f "$CLEAN_PROFILE"
+trap - EXIT
+
 : "${PACKAGE:?PROFILE must set PACKAGE}"
 APPLICATION_TIMEOUT_MS=${APPLICATION_TIMEOUT_MS:-15000}
 STATUS_QUIET=0
