@@ -7,6 +7,9 @@ import io.github.nexalloy.morphe.shared.misc.settings.preference.PreferenceScree
 import io.github.nexalloy.morphe.shared.misc.settings.preference.PreferenceScreenPreference.Sorting
 import io.github.nexalloy.morphe.shared.misc.settings.preference.SwitchPreference
 import io.github.nexalloy.morphe.youtube.insertLiteralOverride
+import io.github.nexalloy.morphe.youtube.misc.contexthook.Endpoint
+import io.github.nexalloy.morphe.youtube.misc.contexthook.addOSNameHook
+import io.github.nexalloy.morphe.youtube.misc.contexthook.clientContextHookPatch
 import io.github.nexalloy.morphe.youtube.misc.navigation.InitializeBottomBarContainerFingerprint
 import io.github.nexalloy.morphe.youtube.misc.navigation.NavigationBarHook
 import io.github.nexalloy.morphe.youtube.misc.navigation.bottomBarContainerId
@@ -23,7 +26,7 @@ val NavigationBar = patch(
     description = "Adds options to hide and change the bottom navigation bar (such as the Shorts button)" +
             " and the upper navigation toolbar.",
 ) {
-    dependsOn(NavigationBarHook, VersionCheck)
+    dependsOn(NavigationBarHook, VersionCheck, clientContextHookPatch)
 
     val navPreferences = mutableSetOf(
         SwitchPreference("morphe_hide_home_button"),
@@ -57,16 +60,16 @@ val NavigationBar = patch(
     )
 
     // Swap create with notifications button.
-    // TODO Morphe uses addOSNameHook(Endpoint.GUIDE, ...) which depends on clientContextHookPatch.
-    // setExtensionIsPatchIncluded(NavigationBarPatch::class.java)
-
-    // Alternative: scopedHook on AutoMotiveFeatureMethod.
-    ::addCreateButtonViewFingerprint.hookMethod(scopedHook(::AutoMotiveFeatureMethod.member) {
-        before { param ->
-            param.result =
-                NavigationBarPatch.swapCreateWithNotificationButton("") == "Android Automotive"
-        }
-    })
+    //
+    // This used to be a scopedHook on AutoMotiveFeatureMethod that always passed
+    // an empty OS name, which made the swap depend on an unrelated
+    // android.hardware.type.automotive lookup. Now that clientContextHookPatch
+    // is ported, hook the real client context so the extension sees the actual
+    // OS name, matching upstream.
+    addOSNameHook(
+        Endpoint.GUIDE,
+        NavigationBarPatch::swapCreateWithNotificationButton
+    )
 
     // Hide navigation button labels.
     CreatePivotBarFingerprint.hookMethod(scopedHook(DexMethod("Landroid/widget/TextView;->setText(Ljava/lang/CharSequence;)V").toMethod()) {

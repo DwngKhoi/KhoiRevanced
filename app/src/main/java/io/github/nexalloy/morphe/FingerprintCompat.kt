@@ -203,6 +203,13 @@ class FingerprintDsl(init: FingerprintDsl.() -> Unit) {
     }
 }
 
+/**
+ * DexKit Query is not equivalent to instruction matching. <br>
+ * This annotation forces the query results to be filtered again using instruction matching.
+ * @see Fingerprint.run
+ */
+annotation class RestrictQuery
+
 open class Fingerprint internal constructor(
     classFingerprint: Fingerprint? = null,
     definingClass: String? = null,

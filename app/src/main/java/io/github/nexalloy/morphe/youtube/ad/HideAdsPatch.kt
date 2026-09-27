@@ -4,18 +4,27 @@ import android.view.View
 import app.morphe.extension.shared.Logger
 import app.morphe.extension.shared.ResourceUtils
 import app.morphe.extension.youtube.patches.components.AdsFilter
+import app.morphe.extension.youtube.settings.preference.ChannelWhitelistPreference
 import de.robv.android.xposed.XC_MethodHook
 import de.robv.android.xposed.XposedHelpers
 import io.github.nexalloy.morphe.shared.ad.HideFullscreenAds
 import io.github.nexalloy.morphe.shared.misc.litho.filter.addLithoFilter
+import io.github.nexalloy.morphe.shared.misc.proto.hookElement
+import io.github.nexalloy.morphe.shared.misc.settings.preference.NonInteractivePreference
 import io.github.nexalloy.morphe.shared.misc.settings.preference.SwitchPreference
 import io.github.nexalloy.morphe.youtube.layout.hide.general.HideHorizontalShelves
+import io.github.nexalloy.morphe.youtube.misc.contexthook.Endpoint
+import io.github.nexalloy.morphe.youtube.misc.contexthook.addOSNameHook
+import io.github.nexalloy.morphe.youtube.misc.contexthook.clientContextHookPatch
 import io.github.nexalloy.morphe.youtube.misc.engagement.EngagementPanelHook
 import io.github.nexalloy.morphe.youtube.misc.engagement.addEngagementPanelIdHook
 import io.github.nexalloy.morphe.youtube.misc.litho.filter.LithoFilter
 import io.github.nexalloy.morphe.youtube.misc.playservice.VersionCheck
+import io.github.nexalloy.morphe.youtube.misc.proto.elementProtoParserHookPatch
 import io.github.nexalloy.morphe.youtube.misc.settings.PreferenceScreen
+import io.github.nexalloy.morphe.youtube.shared.BuildClientContextBodyConstructorFingerprint
 import io.github.nexalloy.patch
+import io.github.nexalloy.scopedHook
 
 val HideAds = patch(
     name = "Hide ads",
@@ -23,8 +32,10 @@ val HideAds = patch(
 ) {
     dependsOn(
         LithoFilter,
+        clientContextHookPatch,
         EngagementPanelHook,
         HideHorizontalShelves,
+        elementProtoParserHookPatch,
 
         HideFullscreenAds(PreferenceScreen.ADS),
         VersionCheck,
@@ -40,6 +51,11 @@ val HideAds = patch(
         SwitchPreference("morphe_hide_self_sponsor_ads"),
         SwitchPreference("morphe_hide_shopping_links"),
         SwitchPreference("morphe_hide_video_ads"),
+        NonInteractivePreference(
+            key = "morphe_ads_channel_whitelist",
+            tag = ChannelWhitelistPreference::class.java,
+            selectable = true
+        ),
         SwitchPreference("morphe_hide_youtube_premium_promotions"),
     )
 
@@ -54,15 +70,21 @@ val HideAds = patch(
     ).forEach { fingerprint ->
         fingerprint.hookMethod {
             before {
-                if(AdsFilter.hideVideoAds())
+                if (AdsFilter.hideVideoAds())
                     it.result = null
             }
         }
     }
 
-    // TODO BuildClientContextBody
+    BuildClientContextBodyConstructorFingerprint.hookMethod(scopedHook(::BuildClientContextIsAutomotive.method) {
+        after {
+            it.result = AdsFilter.hideAds(it.result as Boolean)
+        }
+    })
 
-    // TODO: Hide YouTube Premium promotions
+    // Hide YouTube Premium promotions
+
+    hookElement(AdsFilter::hideStatementBanner)
 
     // TODO: Hide end screen store banner
 
@@ -112,8 +134,30 @@ val HideAds = patch(
 
     // TODO Hide paid promotion label in miniplayer
 
-    // TODO [AdsFilter.hideAds] OsNameHook
-    // TODO [AdsFilter.hideVideoAds] OsNameHook
-    // TODO [AdsFilter.overrideGuideOSName] OsNameHook
+    setOf(
+        Endpoint.BROWSE,
+        Endpoint.SEARCH,
+        Endpoint.NEXT,
+    ).forEach { endpoint ->
+        addOSNameHook(
+            endpoint,
+            AdsFilter::hideAds
+        )
+    }
 
+    setOf(
+        Endpoint.GET_WATCH,
+        Endpoint.PLAYER,
+        Endpoint.REEL,
+    ).forEach { endpoint ->
+        addOSNameHook(
+            endpoint,
+            AdsFilter::hideVideoAds
+        )
+    }
+
+    addOSNameHook(
+        Endpoint.GUIDE,
+        AdsFilter::overrideGuideOSName
+    )
 }

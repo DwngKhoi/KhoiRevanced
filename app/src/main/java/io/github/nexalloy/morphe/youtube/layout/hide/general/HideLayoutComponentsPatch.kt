@@ -22,6 +22,7 @@ import app.morphe.extension.youtube.settings.preference.KeywordContentStatsPrefe
 import io.github.nexalloy.morphe.shared.misc.litho.filter.addLithoFilter
 import io.github.nexalloy.morphe.shared.misc.litho.filter.emptyComponentClass
 import io.github.nexalloy.morphe.shared.misc.litho.node.hookTreeNodeResult
+import io.github.nexalloy.morphe.shared.misc.proto.hookElement
 import io.github.nexalloy.morphe.shared.misc.settings.preference.InputType
 import io.github.nexalloy.morphe.shared.misc.settings.preference.ListPreference
 import io.github.nexalloy.morphe.shared.misc.settings.preference.NonInteractivePreference
@@ -41,6 +42,8 @@ import io.github.nexalloy.morphe.youtube.misc.playertype.PlayerTypeHook
 import io.github.nexalloy.morphe.youtube.misc.playservice.VersionCheck
 import io.github.nexalloy.morphe.youtube.misc.playservice.is_20_26_or_greater
 import io.github.nexalloy.morphe.youtube.misc.playservice.is_20_31_or_greater
+import io.github.nexalloy.morphe.youtube.misc.playservice.is_21_07_or_greater
+import io.github.nexalloy.morphe.youtube.misc.proto.elementProtoParserHookPatch
 import io.github.nexalloy.morphe.youtube.misc.settings.PreferenceScreen
 import io.github.nexalloy.new
 import io.github.nexalloy.patch
@@ -69,6 +72,7 @@ val HideLayoutComponents = patch(
         NavigationBarHook,
         VersionCheck,
         HideHorizontalShelves,
+        elementProtoParserHookPatch,
         TreeNodeElementHook,
     )
 
@@ -79,6 +83,7 @@ val HideLayoutComponents = patch(
                 SwitchPreference("morphe_hide_ai_generated_video_summary_section"),
                 SwitchPreference("morphe_hide_ask_section"),
                 SwitchPreference("morphe_hide_attributes_section", summary = true),
+                SwitchPreference("morphe_hide_channel_links_section"),
                 SwitchPreference("morphe_hide_chapters_section"),
                 SwitchPreference("morphe_hide_corrections_section"),
                 SwitchPreference("morphe_hide_course_progress_section"),
@@ -257,6 +262,17 @@ val HideLayoutComponents = patch(
                         )
                     )
                 ),
+//                PreferenceCategory(
+//                    key = "morphe_aislist_submit_category",
+//                    sorting = Sorting.UNSORTED,
+//                    preferences = setOf(
+//                        SwitchPreference("morphe_aislist_submit_flyout_menu", summary = true),
+//                        TextPreference(
+//                            key = "morphe_aislist_submit_username",
+//                            inputType = InputType.TEXT
+//                        )
+//                    )
+//                ),
                 PreferenceCategory(
                     key = "morphe_hide_aislist_stats_category",
                     titleKey = "morphe_hide_stats_category_title",
@@ -439,8 +455,7 @@ val HideLayoutComponents = patch(
     // layout.album_card
 
     // hide comments carousel
-    // TODO depends on elementProtoParserHookPatch
-    // hookElement("$COMMENTS_FILTER_CLASS_NAME->onCommentsLoaded([B)[B")
+    hookElement(CommentsFilter::onCommentsLoaded)
 
     // hide comments info button
     // id.information_button
@@ -451,15 +466,15 @@ val HideLayoutComponents = patch(
     // hide live chat donators bar
     // layout.live_chat_ticker_item
 
-    // TODO hide floating microphone — ShowFloatingMicrophoneButtonFingerprint METHOD_MID
+    // TODO hide floating microphone
 
     // hide latest videos button
     // layout.content_pill
     // layout.bar
 
-    // TODO hide YouTube Doodles — YouTubeDoodlesImageViewFingerprint METHOD_MID (replace setImageDrawable)
+    // TODO hide YouTube Doodles
 
-    // TODO hide view count — HideViewCountFingerprint METHOD_MID (modifyFeedSubtitleSpan)
+    // TODO hide view count
 
     // region hide filter bar
     // dimen.filter_bar_height
@@ -471,13 +486,12 @@ val HideLayoutComponents = patch(
     // fix: related video overlay is broken due to patch.
     insertLiteralOverride(45614162L, LayoutComponentsFilter::hideInRelatedVideos)
     insertLiteralOverride(45661108L, LayoutComponentsFilter::hideInRelatedVideos)
-    insertLiteralOverride(45682279L, LayoutComponentsFilter::hideInRelatedVideos)
 
     // TODO PanelSubheaderFingerprint
 
     // endregion
 
-    // TODO hide you may like section — SearchSuggestionEndpoint/SearchBoxTypingString METHOD_MID (complex helper)
+    // TODO hide you may like section
 
     // region TODO hide flyout menu
 /*
@@ -500,7 +514,7 @@ val HideLayoutComponents = patch(
 
     // endregion
 
-    // TODO hide channel tab — ChannelTabBuilder/ChannelTabRenderer METHOD_MID (iterator manipulation)
+    // TODO hide channel tab
 
     // TODO hide search term thumbnails
 
@@ -606,5 +620,13 @@ val HideLayoutComponents = patch(
                 else -> return@after
             }
         }
+    }
+
+
+    // region disable UI padding feature flags
+
+    if (is_21_07_or_greater) {
+        insertLiteralOverride(45752241, LayoutComponentsFilter::disableUIPaddingFeatureFlags)
+        insertLiteralOverride(45724388, LayoutComponentsFilter::disableUIPaddingFeatureFlags)
     }
 }

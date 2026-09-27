@@ -53,11 +53,18 @@ not depend on LSPosed.
 
 The patch set is tracked as a Git submodule pointing at
 [NexAlloy/morphe-patches](https://github.com/NexAlloy/morphe-patches) branch
-`nexalloy`, currently **v1.43.0** (`c92e718f8`). `app/` is KhoiRevanced's own
-port layer that re-expresses those patches as runtime hooks, so it must be kept
-in step with the submodule: when upstream renames or removes an extension entry
-point, the corresponding reference in `app/` has to be migrated too, otherwise
+`nexalloy`, currently **v1.44.0** (`776fdeb72`), with
+`morphe-patches-library` at `3e4e068`. `app/` is KhoiRevanced's own port layer
+that re-expresses those patches as runtime hooks, so it must be kept in step
+with the submodule: when upstream renames or removes an extension entry point,
+the corresponding reference in `app/` has to be migrated too, otherwise
 `:nexalloy-payload` stops compiling.
+
+DexKit is vendored as `libs/dexkit-android.aar` from the NexAlloy DexKit fork
+(commit `59d5d332`) rather than resolved from Maven, so it must be refreshed
+from that fork by hand when upstream bumps it. Keeping it identical to
+upstream matters: the two builds have to fingerprint the same target APK the
+same way.
 
 Upstream NexAlloy is an LSPosed module: it compiles against
 `de.robv.android.xposed:api:82`, which is a stub whose methods all throw, and
