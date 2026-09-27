@@ -36,7 +36,15 @@ prepare_payload() {
     [ -r "$PAYLOAD_DIR/nexalloy.dexpack" ] || die "missing NexAlloy compatibility payload"
     [ -r "$PAYLOAD_DIR/libdexkit.so" ] || die "missing DexKit payload"
     [ -r "$PAYLOAD_DIR/classes.dex" ] || die "missing DEX payload"
-    [ -d "$APP_DATA" ] || die "$PACKAGE is not installed for user 0"
+    # Android creates /data/user/0/<pkg> lazily, on the app's first launch. A
+    # package that is installed but has never been opened is installed with no
+    # data directory, so probing for the directory is not a test for
+    # installation: it reports "installed but never launched" with the same
+    # message as "not installed at all", which sends you looking in the wrong
+    # place. Ask the package manager which of the two it is.
+    pm path "$PACKAGE" 2>/dev/null | grep -q '^package:' || die "$PACKAGE is not installed"
+    [ -d "$APP_DATA" ] ||
+        die "$PACKAGE has no data directory yet: open the app once, then retry"
     uid=$(stat -c '%u' "$APP_DATA")
     mkdir -p "$RUN_DIR" "$CACHE_DIR"
     cp -f "$PAYLOAD_DIR/khoirevanced-injector" "$RUNTIME_DIR/"
