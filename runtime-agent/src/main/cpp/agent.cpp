@@ -3,22 +3,15 @@
 #include <jni.h>
 #include <unistd.h>
 
-#include <atomic>
 #include <chrono>
 #include <cstdio>
 #include <fstream>
 #include <string>
 #include <thread>
 
-// Implemented in native_hook_backend.cpp.
-extern "C" jboolean dev_khoirevanced_initialize_hook_backend(JNIEnv* env, const char* log_path);
-
 namespace {
 constexpr char kTag[] = "KhoiRevanced";
 
-// Set once JNI_OnLoad has run, which is the only point at which a JNIEnv without
-// hidden-API restrictions is available for LSPlant.
-std::atomic<bool> g_jni_onload_complete{false};
 
 using GetCreatedJavaVms = jint (*)(JavaVM**, jsize, jsize*);
 
@@ -94,17 +87,6 @@ bool clear_exception(JNIEnv* env, const char* stage) {
 
 void bootstrap() {
     __android_log_print(ANDROID_LOG_INFO, kTag, "bootstrap thread started in pid %d", getpid());
-    // This thread is started from an ELF constructor, which the dynamic linker
-    // runs before it calls JNI_OnLoad. Wait for JNI_OnLoad so LSPlant is
-    // initialised from the environment it requires before any Java code runs,
-    // rather than racing it and reporting a failure from the wrong JNIEnv.
-    for (int attempt = 0; attempt < 500 && !g_jni_onload_complete.load(); ++attempt) {
-        std::this_thread::sleep_for(std::chrono::milliseconds(10));
-    }
-    if (!g_jni_onload_complete.load()) {
-        __android_log_print(ANDROID_LOG_ERROR, kTag,
-                            "JNI_OnLoad did not run; continuing without it");
-    }
     JavaVM* vm = wait_for_vm();
     if (vm == nullptr) {
         log_error("JNI VM was not found");
@@ -232,41 +214,6 @@ void bootstrap() {
     if (attached) vm->DetachCurrentThread();
 }
 }  // namespace
-
-// Where native_hook_backend writes its diagnostics. Derived from the layout
-// inject.sh creates rather than read from the config, so it is available before
-// anything has parsed that config: <runtime>/run/<pid>.conf next to
-// <runtime>/cache/.
-std::string native_log_path() {
-    const std::string config = config_path();
-    const size_t last_slash = config.rfind('/');
-    if (last_slash == std::string::npos) return {};
-    const size_t run_slash = config.rfind('/', last_slash - 1);
-    if (run_slash == std::string::npos) return {};
-    return config.substr(0, run_slash) + "/cache/native-hook.log";
-}
-
-// LSPlant requires a JNIEnv that carries no hidden-API restriction and states
-// that such an environment is the one handed to JNI_OnLoad. Initialising from
-// the bootstrap thread instead, as this did, made Init return false before it
-// even asked for a single ART symbol. dlopen calls this on every load of the
-// agent, and initialise_hook_backend is idempotent, so the later System.load
-// from the Kotlin side is harmless.
-extern "C" JNIEXPORT jint JNICALL JNI_OnLoad(JavaVM* vm, void*) {
-    JNIEnv* env = nullptr;
-    if (vm == nullptr || vm->GetEnv(reinterpret_cast<void**>(&env), JNI_VERSION_1_6) != JNI_OK) {
-        __android_log_print(ANDROID_LOG_ERROR, kTag, "JNI_OnLoad: could not obtain a JNIEnv");
-    } else {
-        const std::string log_path = native_log_path();
-        const jboolean ok = dev_khoirevanced_initialize_hook_backend(
-            env, log_path.empty() ? nullptr : log_path.c_str());
-        __android_log_print(ok == JNI_TRUE ? ANDROID_LOG_INFO : ANDROID_LOG_ERROR, kTag,
-                            "LSPlant init from JNI_OnLoad: %s",
-                            ok == JNI_TRUE ? "succeeded" : "failed");
-    }
-    g_jni_onload_complete.store(true);
-    return JNI_VERSION_1_6;
-}
 
 __attribute__((constructor)) static void khoirevanced_load() {
     __android_log_print(ANDROID_LOG_INFO, kTag, "agent %s loaded in pid %d",

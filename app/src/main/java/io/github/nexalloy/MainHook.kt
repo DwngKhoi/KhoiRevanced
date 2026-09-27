@@ -92,7 +92,7 @@ class MainHook : XposedModule(), IXposedHookLoadPackage, IXposedHookZygoteInit {
             System.setProperty("khoirevanced.nexalloy.state", "patches-applied")
             System.setProperty(
                 "khoirevanced.nexalloy.failed",
-                executor.failedPatchNames.joinToString(",")
+                executor.failedPatchReports.joinToString(" | ")
             )
         }
     }

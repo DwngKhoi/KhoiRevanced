@@ -117,9 +117,13 @@ object NexAlloyCompatibilityModule {
             check(state == "patches-applied") {
                 "NexAlloy callback did not complete its patch executor (state=$state)"
             }
+            // Entries are "name: reason" pairs joined by " | ", so the separator is
+            // a pipe rather than a comma: patch names and exception messages both
+            // contain commas.
             val failed = System.getProperty("khoirevanced.nexalloy.failed").orEmpty()
-                .split(',')
-                .filter { it.isNotBlank() }
+                .split("|")
+                .map(String::trim)
+                .filter { it.isNotEmpty() }
             failedPatches = failed
             if (failed.isNotEmpty()) {
                 Log.w(TAG, "Patches that did not apply: ${failed.joinToString(", ")}")
@@ -141,7 +145,7 @@ object NexAlloyCompatibilityModule {
 
     private fun extractDexFiles(module: File, inputDir: File): List<File> {
         val dexPattern = Regex("""classes(\d*)\.dex""")
-        return ZipFile(module).use { zip ->
+        val extracted = ZipFile(module).use { zip ->
             zip.entries().asSequence()
                 .filter { !it.isDirectory && dexPattern.matches(it.name) }
                 .sortedWith(compareBy {
@@ -157,5 +161,22 @@ object NexAlloyCompatibilityModule {
                 }
                 .toList()
         }
+
+        // ART refuses to load a dex that is still writable, and it tests the
+        // containing directory as well as the file:
+        //
+        //   SecurityException: Writable dex file '<...>/nexalloy-dex/input/classes.dex'
+        //   is not allowed.
+        //
+        // The payload files staged by inject.sh are already made read-only for the
+        // same reason, but these are written here at runtime with default
+        // permissions, so they have to be sealed after extraction. Clearing only
+        // the owner write bit is enough: ART asks whether access(W_OK) would
+        // succeed, and this process owns both the files and the directory.
+        // Deliberately not sealed read-only as root: the injector chowns the cache
+        // tree to the app so DexClassLoader can write its optimized output.
+        extracted.forEach { it.setWritable(false, false) }
+        inputDir.setWritable(false, false)
+        return extracted
     }
 }

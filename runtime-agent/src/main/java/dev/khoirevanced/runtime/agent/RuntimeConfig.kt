@@ -8,6 +8,7 @@ data class RuntimeConfig(
     val cacheDir: String,
     val agentPath: String,
     val modulePath: String?,
+    val pinePath: String?,
     val applicationTimeoutMs: Long,
 ) {
     companion object {
@@ -29,6 +30,7 @@ data class RuntimeConfig(
                 cacheDir = values["cache_dir"] ?: "/data/local/tmp/khoirevanced/cache",
                 agentPath = values.getValue("agent"),
                 modulePath = values["module"]?.takeIf { it.isNotBlank() },
+                pinePath = values["pine"]?.takeIf { it.isNotBlank() },
                 applicationTimeoutMs = values["application_timeout_ms"]?.toLong() ?: 15_000L,
             )
         }

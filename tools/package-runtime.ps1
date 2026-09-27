@@ -125,9 +125,9 @@ Copy-Item (Join-Path $nativeBuild 'khoirevanced-injector') $out -Force
 $agent = Get-ChildItem "$root\runtime-agent\build\intermediates\cxx" -Filter libkhoirevanced_agent.so -Recurse | Where-Object FullName -Match 'arm64-v8a' | Select-Object -First 1
 if (-not $agent) { throw 'Could not locate libkhoirevanced_agent.so.' }
 Copy-Item $agent.FullName (Join-Path $out 'libkhoirevanced_agent.so') -Force
-Copy-Item (Join-Path $root 'third_party\lsplant-libs\arm64-v8a\liblsplant.so') (Join-Path $out 'liblsplant.so') -Force
+Copy-Item (Join-Path $root 'third_party\pine-libs\libpine.so') (Join-Path $out 'libpine.so') -Force
 # Preserve the complete upstream module as a read-only dexpack.  It is loaded
-# through the standalone LSPlant runtime in-process and is never installed as an APK.
+# through the standalone Pine runtime in-process and is never installed as an APK.
 Copy-Item $moduleApk (Join-Path $out 'nexalloy.dexpack') -Force
 Add-Type -AssemblyName System.IO.Compression.FileSystem
 $apkZip = [System.IO.Compression.ZipFile]::OpenRead($moduleApk)
@@ -145,13 +145,13 @@ try {
 # The bundle must contain every file inject.sh validates in prepare_payload.
 # Verifying here turns a device-side "missing ... payload" abort into a build
 # failure on the host. This has to run after every copy above, not right after
-# d8, because the injector, agent, LSPlant, DexKit and dexpack land later.
+# d8, because the injector, agent, Pine, DexKit and dexpack land later.
 $requiredPayload = @(
     'classes.dex',
     'khoirevanced-injector',
     'libdexkit.so',
     'libkhoirevanced_agent.so',
-    'liblsplant.so',
+    'libpine.so',
     'nexalloy.dexpack'
 )
 $missingPayload = @($requiredPayload | Where-Object { -not (Test-Path (Join-Path $out $_)) })
@@ -173,6 +173,13 @@ $requiredTypes = @(
     'Lde/robv/android/xposed/XposedBridge;',
     'Lde/robv/android/xposed/XC_MethodHook;',
     'Lio/github/libxposed/api/XposedModule;',
+      # The hook engine. Pine's JNI_OnLoad calls FindClass on Pine and Ruler and
+      # returns JNI_ERR if either is unreachable, so a packaging slip that drops
+      # them from this dex must fail the build rather than the device.
+      'Ltop/canyie/pine/Pine;',
+      'Ltop/canyie/pine/PineConfig;',
+      'Ltop/canyie/pine/callback/MethodHook;',
+      'Ldev/khoirevanced/runtime/agent/PineHookBackend;',
     # The payload calls into KhoiRevanced's own runtime contract, which lives in
     # this dex because it is the parent class loader the payload resolves
     # against. StaticFields in particular carries the `static final` write

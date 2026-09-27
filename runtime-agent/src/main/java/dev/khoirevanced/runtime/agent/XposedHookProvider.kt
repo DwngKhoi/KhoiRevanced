@@ -3,6 +3,7 @@ package dev.khoirevanced.runtime.agent
 import de.robv.android.xposed.XC_MethodHook
 import de.robv.android.xposed.XposedBridge
 import dev.khoirevanced.runtime.api.HookHandle
+import dev.khoirevanced.runtime.api.HookRuntime
 import dev.khoirevanced.runtime.api.HookParam
 import dev.khoirevanced.runtime.api.MethodHookCallback
 import java.lang.reflect.InvocationTargetException
@@ -33,7 +34,7 @@ import java.util.concurrent.ConcurrentHashMap
  * at the first `returnEarly`; `after` callbacks run over exactly the callbacks
  * that ran in `before`, in reverse.
  */
-internal object LsplantXposedHookProvider : XposedBridge.HookProvider {
+internal object XposedHookProvider : XposedBridge.HookProvider {
 
     private class MemberHooks(
         @Suppress("unused") val handle: HookHandle,
@@ -84,14 +85,14 @@ internal object LsplantXposedHookProvider : XposedBridge.HookProvider {
                 existing.callbacks = existing.callbacks + snapshot
                 existing
             } else {
-                val handle = NativeHookBackend.hook(member, dispatcherFor(member))
+                val handle = HookRuntime.backend.hook(member, dispatcherFor(member))
                 MemberHooks(handle).apply { callbacks = snapshot }
             }
         }
     }
 
     override fun invokeOriginal(member: Member, receiver: Any?, args: Array<Any?>): Any? =
-        NativeHookBackend.invokeOriginal(member, receiver, args)
+        HookRuntime.backend.invokeOriginal(member, receiver, args)
 
     private fun dispatcherFor(member: Member) = object : MethodHookCallback() {
         override fun before(param: HookParam) {

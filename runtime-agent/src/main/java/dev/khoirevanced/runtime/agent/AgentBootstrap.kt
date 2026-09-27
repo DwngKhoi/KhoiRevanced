@@ -23,14 +23,15 @@ object AgentBootstrap {
             // with the payload's class loader.
             System.load(parsed.agentPath)
             RuntimeDiagnostics.stage(parsed, "agent-library-loaded")
-            NativeHookBackend.initialize(parsed)
+            // PineRuntime starts the engine and installs the backend; this
+            // records the capabilities that were actually installed.
+            PineRuntime.initialize(parsed)
             RuntimeDiagnostics.stage(
                 parsed,
-                "lsplant-ready",
-                NativeHookBackend.capabilities.joinToString(),
+                "hook-backend-ready",
+                HookRuntime.backend.capabilities.joinToString(),
             )
-            HookRuntime.install(NativeHookBackend)
-            LsplantXposedHookProvider.install()
+            XposedHookProvider.install()
             val app = waitForApplication(parsed.applicationTimeoutMs)
             RuntimeDiagnostics.stage(parsed, "application-ready", app.packageName)
             RuntimeDiagnostics.stage(parsed, "nexalloy-loading", parsed.modulePath ?: "none")
@@ -44,10 +45,10 @@ object AgentBootstrap {
             RuntimeDiagnostics.record(
                 parsed,
                 state = "ready",
-                detail = "engine=lsplant; module=${NexAlloyCompatibilityModule.status}; " +
-                    "capabilities=${NativeHookBackend.capabilities.joinToString()}; " +
+                detail = "engine=pine; module=${NexAlloyCompatibilityModule.status}; " +
+                    "capabilities=${HookRuntime.backend.capabilities.joinToString()}; " +
                     "failedPatches=${NexAlloyCompatibilityModule.failedPatches
-                        .ifEmpty { listOf("none") }.joinToString(",")}",
+                        .ifEmpty { listOf("none") }.joinToString(" ; ")}",
             )
             Log.i(TAG, "Runtime attached to ${app.packageName}; profile=${parsed.profile}")
         }.onFailure { error ->

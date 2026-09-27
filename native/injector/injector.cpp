@@ -248,41 +248,13 @@ int main(int argc, char** argv) {
         return false;
     };
 
-    // The agent is linked against liblsplant.so, which inject.sh places in the
-    // same directory. Because the agent is dlopen'ed by absolute path from the
-    // target's own linker namespace, the linker has to satisfy that DT_NEEDED
-    // from a namespace whose search path does not include the payload
-    // directory, and the load fails with:
-    //
-    //   remote dlopen returned null: dlopen failed: library "liblsplant.so"
-    //   not found: needed by .../libkhoirevanced_agent.so in namespace clns-9
-    //
-    // Load the dependency into the same namespace first. The linker then
-    // resolves the agent's DT_NEEDED against what it has already loaded, so no
-    // search path has to be widened.
-    //
-    // This is done here rather than with a DT_RUNPATH of $ORIGIN on the agent
-    // because CMake escapes '$' when it writes the link line, emitting
-    // `-rpath=$$$$ORIGIN`, which the NDK toolchain then reduces to a literal
-    // `$$ORIGIN` in DT_RUNPATH. Preloading sidesteps the build system.
-    const char* const last_slash = strrchr(resolved, '/');
-    if (last_slash != nullptr) {
-        const size_t dir_length = static_cast<size_t>(last_slash - resolved);
-        char dependency[PATH_MAX]{};
-        const int written = snprintf(dependency, sizeof(dependency), "%.*s/liblsplant.so",
-                                     static_cast<int>(dir_length), resolved);
-        if (written > 0 && static_cast<size_t>(written) < sizeof(dependency)) {
-            if (load_in_target(dependency)) {
-                printf("preloaded %s\n", dependency);
-            } else {
-                // Not fatal on its own: if the agent's DT_NEEDED can still be
-                // satisfied, the next load succeeds. Report and carry on so the
-                // agent load produces the authoritative error.
-                fprintf(stderr, "could not preload %s, continuing\n", dependency);
-            }
-        }
-    }
-
+    // No dependency is preloaded. The agent links only against libc and liblog;
+    // the hook engine is Pine, and Pine loads its own native library from the
+    // staged path via PineConfig.libLoader once the Kotlin side starts. Loading
+    // it here would break it, because libpine.so's JNI_OnLoad calls
+    // FindClass("top/canyie/pine/Pine") and returns JNI_ERR unless the Java
+    // classes are reachable from the loading class loader -- which is not true
+    // at the point the agent is dlopen'ed.
     if (!load_in_target(resolved)) {
         return 70;
     }

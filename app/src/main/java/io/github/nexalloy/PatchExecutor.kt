@@ -161,6 +161,17 @@ class PatchExecutor(
     private lateinit var patches: Array<Patch>
     private val appliedPatches = mutableSetOf<Patch>()
     private val failedPatches = mutableListOf<Patch>()
+    private val failureReasons = mutableListOf<String>()
+
+    /**
+     * One "name: reason" entry per patch that failed, in the order they ran.
+     *
+     * Reported through the status file alongside [failedPatchNames] so a failed
+     * patch can be diagnosed from the controller's output instead of requiring
+     * logcat from an injected process.
+     */
+    val failedPatchReports: List<String>
+        get() = failureReasons.toList()
 
     /**
      * Names of the patches that could not be applied, in the order they ran.
@@ -240,6 +251,10 @@ class PatchExecutor(
             runCatching { hook.run(this) }.onFailure { err ->
                 XposedBridge.log(err)
                 failedPatches.add(hook)
+                // Keep the reason, not just the name. The name alone cannot tell
+                // a stale fingerprint from a missing resource, and the only place
+                // the cause is visible is the log the controller never reads.
+                failureReasons.add("${hook.name}: ${err.javaClass.simpleName}: ${err.message}")
             }.onSuccess {
                 appliedPatches.add(hook)
             }
