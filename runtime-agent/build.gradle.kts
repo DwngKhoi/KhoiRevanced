@@ -35,10 +35,15 @@ android {
 dependencies {
     implementation(project(":runtime-api"))
     // These JARs provide the legacy Xposed *Java API* required by the NexAlloy
-    // payload. They are not an ART hook engine: libpine.so is not packaged or
-    // loaded, and XposedBridge is configured to use LSPlant at bootstrap.
+    // payload, plus Pine's own API, which is the hook engine this runtime uses.
     compileOnly(files("../third_party/pine-libs/pine-core.jar"))
     compileOnly(files("../third_party/pine-libs/pine-xposed.jar"))
+    // StandaloneXposedInterface implements the modern libxposed service
+    // interface, and NexAlloyCompatibilityModule attaches it to the payload's
+    // XposedModule. The classes reach the agent's classes.dex through
+    // tools/package-runtime.ps1, which dexes this AAR's classes.jar, so the
+    // module needs it on the compile classpath to implement against it.
+    compileOnly(libs.libxposed.api)
     testImplementation("junit:junit:4.13.2")
 }
 

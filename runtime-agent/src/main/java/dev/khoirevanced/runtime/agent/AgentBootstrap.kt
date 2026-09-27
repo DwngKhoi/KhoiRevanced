@@ -15,17 +15,20 @@ object AgentBootstrap {
         runCatching {
             val parsed = RuntimeConfig.parse(File(configPath))
             config = parsed
-            RuntimeDiagnostics.stage(parsed, "config-loaded")
-            Log.i(TAG, "bootstrap pid=${android.os.Process.myPid()} package=${parsed.packageName} " +
+            RuntimeLog.open(parsed.cacheDir)
+            RuntimeLog.stage("bootstrap", "pid=${android.os.Process.myPid()} package=${parsed.packageName} " +
                 "profile=${parsed.profile} agent=${parsed.agentPath} module=${parsed.modulePath}")
+            RuntimeDiagnostics.stage(parsed, "config-loaded")
             // The library was originally loaded by the ptrace injector. Load it
             // through this DexClassLoader too, so ART associates JNI methods
             // with the payload's class loader.
             System.load(parsed.agentPath)
+            RuntimeLog.stage("agent-library-loaded")
             RuntimeDiagnostics.stage(parsed, "agent-library-loaded")
             // PineRuntime starts the engine and installs the backend; this
             // records the capabilities that were actually installed.
             PineRuntime.initialize(parsed)
+            RuntimeLog.stage("hook-backend-ready", HookRuntime.backend.capabilities.joinToString())
             RuntimeDiagnostics.stage(
                 parsed,
                 "hook-backend-ready",
@@ -33,7 +36,16 @@ object AgentBootstrap {
             )
             XposedHookProvider.install()
             val app = waitForApplication(parsed.applicationTimeoutMs)
+            RuntimeLog.stage("application-ready", app.packageName)
             RuntimeDiagnostics.stage(parsed, "application-ready", app.packageName)
+            // NexAlloy's entry class extends XposedModule, whose every delegated
+            // call throws "Framework not attached" until a framework object is
+            // attached. Supply our own in-process implementation before any
+            // module code runs.
+            StandaloneXposedInterface.context = app
+            StandaloneXposedInterface.hostApplicationInfo = app.applicationInfo
+            StandaloneXposedInterface.payloadDirectory = File(parsed.agentPath).parentFile
+            RuntimeLog.stage("xposed-service-bound", "framework=${StandaloneXposedInterface.getFrameworkName()}")
             RuntimeDiagnostics.stage(parsed, "nexalloy-loading", parsed.modulePath ?: "none")
             NexAlloyCompatibilityModule.load(app, parsed)
             RuntimeDiagnostics.stage(parsed, "nexalloy-load-finished", NexAlloyCompatibilityModule.status)

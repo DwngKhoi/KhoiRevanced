@@ -59,6 +59,7 @@ internal object PineHookBackend : HookBackend {
                 frame.flush(param)
             }
         })
+        RuntimeLog.info("hook", "installed ${member.declaringClass?.name}.${member.name}")
         return HookHandle { unhook.unhook() }
     }
 

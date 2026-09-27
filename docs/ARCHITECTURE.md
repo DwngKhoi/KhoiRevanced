@@ -101,16 +101,59 @@ would have received the real thing.
 
 ## Hooking model
 
-`XposedBridge.setHookProvider(LsplantXposedHookProvider)` re-routes the legacy
-API into `lsplant::Hook`, with Dobby as the inline hooker. LSPlant installs one
-ART interception per member, but `XposedBridge.hookMethod` may be called many
-times for the same member, so the provider keeps one handle per member and an
-ordered callback list behind it. `before` callbacks run in registration order
-and stop at the first `returnEarly`; `after` runs over exactly the callbacks
-that ran in `before`, in reverse. Several NexAlloy fingerprints genuinely are
-hooked more than once (`initializeButtonsFingerprint` three times,
+Pine is the hook engine. It resolves the `ArtMethod` field offsets by probing
+memory at runtime instead of looking up ART symbols by name, which is what lets
+it run on a release `libart.so`: a stripped image defines 1922 dynamic symbols,
+1782 of them ART's, and not every symbol a hook framework can ask for is among
+them. It also disables the hidden-API policy itself.
+
+`XposedBridge.setHookProvider(XposedHookProvider)` re-routes the legacy
+`hookMethod` API into `Pine.hook`. Pine installs one ART interception per
+member, but `hookMethod` may be called many times for the same member, so the
+provider keeps one handle per member and an ordered callback list behind it.
+`before` callbacks run in registration order and stop at the first
+`returnEarly`; `after` runs over exactly the callbacks that ran in `before`, in
+reverse. Several NexAlloy fingerprints genuinely are hooked more than once
+(`initializeButtonsFingerprint` three times,
 `experimentalBooleanFeatureFlagFingerprint` twice), so this is load-bearing
-rather than defensive.
+rather than defensive. Pine's own provider cannot be used directly: it wraps
+the callback snapshot in a fresh `Handler` and calls `Pine.hook` again on every
+`hookMethod`, so a member hooked twice would run its first callback twice.
+
+## The framework, not just the injection
+
+NexAlloy is complete as module logic, but it is written against an Xposed
+*framework*, and it is instantiated by one. Replacing the injection is not the
+same as replacing that framework, and the difference is the whole reason this
+project has to own things rather than import them.
+
+`XposedInterface` is a service interface of twelve methods, not a hook API:
+
+    getFrameworkName / getFrameworkVersion / getFrameworkVersionCode / getFrameworkProperties
+    hook / hookClassInitializer / deoptimize
+    getInvoker(Method) / getInvoker(Constructor)      super-call support
+    log
+    getModuleApplicationInfo
+    getRemotePreferences                              SharedPreferences over Binder
+    listRemoteFiles / openRemoteFile                  file access over Binder
+
+`MainHook` extends `XposedModule`, which extends `XposedInterfaceWrapper`, and
+that wrapper throws `Framework not attached` from every delegated call until a
+real daemon calls `attachFramework`. So each of these has to be provided, and
+each one that is missing shows up as a patch that will not apply:
+
+| Framework service | Symptom when absent | Provided by |
+| --- | --- | --- |
+| ART hook engine | `lsplant::Init` false, no hooks | `PineHookBackend` on Pine |
+| `getInvoker` | `Framework not attached` | `StandaloneXposedInterface` |
+| `static final` write | fields silently unwritable | `StaticFields` |
+| `getRemotePreferences` | remote prefs return null | same interface, real preferences |
+
+`StandaloneXposedInterface` also implements `getRemotePreferences` against real
+preferences rather than a Binder proxy, and routes the `hook` family to the same
+backend, so no part of the modern API is a landmine. The genuinely
+service-shaped methods -- `listRemoteFiles`, `openRemoteFile` -- are served from
+the staged payload directory.
 
 ## Why the payload is separate
 

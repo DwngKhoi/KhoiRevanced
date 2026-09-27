@@ -5,6 +5,7 @@ import android.util.Log
 import de.robv.android.xposed.IXposedHookLoadPackage
 import de.robv.android.xposed.IXposedHookZygoteInit
 import de.robv.android.xposed.XposedBridge
+import io.github.libxposed.api.XposedInterfaceWrapper
 import de.robv.android.xposed.callbacks.XC_LoadPackage
 import dalvik.system.DexClassLoader
 import java.io.File
@@ -86,6 +87,12 @@ object NexAlloyCompatibilityModule {
             )
             val entry = loader.loadClass("io.github.nexalloy.MainHook")
                 .getDeclaredConstructor().newInstance()
+            // XposedModule extends XposedInterfaceWrapper, and that wrapper throws
+            // "Framework not attached" from every delegated call until
+            // attachFramework runs. NexAlloy reaches XposedInterface from
+            // getInvoker in SettingsPatch, to make a super call.
+            (entry as XposedInterfaceWrapper).attachFramework(StandaloneXposedInterface) { }
+            RuntimeLog.stage("xposed-service-attached")
             val zygoteHook = entry as IXposedHookZygoteInit
             zygoteHook.initZygote(IXposedHookZygoteInit.StartupParam().apply {
                 this.modulePath = module.absolutePath
@@ -175,6 +182,7 @@ object NexAlloyCompatibilityModule {
         // succeed, and this process owns both the files and the directory.
         // Deliberately not sealed read-only as root: the injector chowns the cache
         // tree to the app so DexClassLoader can write its optimized output.
+        RuntimeLog.stage("dex-sealed", "count=${extracted.size}")
         extracted.forEach { it.setWritable(false, false) }
         inputDir.setWritable(false, false)
         return extracted

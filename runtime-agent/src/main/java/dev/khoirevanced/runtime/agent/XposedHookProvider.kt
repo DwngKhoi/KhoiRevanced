@@ -80,7 +80,7 @@ internal object XposedHookProvider : XposedBridge.HookProvider {
         callbackSet: XposedBridge.CopyOnWriteSortedSet<XC_MethodHook>,
     ) {
         val snapshot = callbackSet.snapshotCallbacks()
-        hooks.compute(member) { _, existing ->
+        val result = hooks.compute(member) { _, existing ->
             if (existing != null) {
                 existing.callbacks = existing.callbacks + snapshot
                 existing
@@ -89,6 +89,11 @@ internal object XposedHookProvider : XposedBridge.HookProvider {
                 MemberHooks(handle).apply { callbacks = snapshot }
             }
         }
+        RuntimeLog.info(
+            "xposed-hook",
+            "${member.declaringClass?.name}.${member.name} " +
+                "callbacks=${result?.callbacks?.size} total=${result != null}",
+        )
     }
 
     override fun invokeOriginal(member: Member, receiver: Any?, args: Array<Any?>): Any? =

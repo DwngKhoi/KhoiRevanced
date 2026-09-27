@@ -254,9 +254,14 @@ class PatchExecutor(
                 // Keep the reason, not just the name. The name alone cannot tell
                 // a stale fingerprint from a missing resource, and the only place
                 // the cause is visible is the log the controller never reads.
-                failureReasons.add("${hook.name}: ${err.javaClass.simpleName}: ${err.message}")
+                val where = err.stackTrace.take(4)
+                    .joinToString(" < ") { "${it.className}.${it.methodName}" }
+                failureReasons.add("${hook.name}: ${err.javaClass.simpleName}: ${err.message} @ $where")
+                println("KhoiRevancedPatch FAILED ${hook.name}: ${err.javaClass.simpleName}: ${err.message} @ $where")
+                err.printStackTrace()
             }.onSuccess {
                 appliedPatches.add(hook)
+                println("KhoiRevancedPatch applied ${hook.name}")
             }
         }
     }
