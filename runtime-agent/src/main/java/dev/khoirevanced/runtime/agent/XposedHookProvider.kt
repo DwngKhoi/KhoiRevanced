@@ -113,6 +113,7 @@ internal object XposedHookProvider : XposedBridge.HookProvider {
             for (index in active.indices) {
                 val previousResult = xposedParam.result
                 val previousThrowable = xposedParam.throwable
+                Recursion.enter(member)
                 try {
                     beforeCallback.invokeCallback(active[index], xposedParam)
                 } catch (error: Throwable) {
@@ -125,6 +126,8 @@ internal object XposedHookProvider : XposedBridge.HookProvider {
                         error,
                     )
                     xposedParam.restore(previousResult, previousThrowable)
+                } finally {
+                    Recursion.exit()
                 }
                 completed = index
                 if (xposedParam.isReturnEarly()) break
@@ -153,6 +156,7 @@ internal object XposedHookProvider : XposedBridge.HookProvider {
                 for (index in state.completed downTo 0) {
                     val previousResult = state.param.result
                     val previousThrowable = state.param.throwable
+                    Recursion.enter(member)
                     try {
                         afterCallback.invokeCallback(state.callbacks[index], state.param)
                     } catch (error: Throwable) {
@@ -163,6 +167,8 @@ internal object XposedHookProvider : XposedBridge.HookProvider {
                             error,
                         )
                         state.param.restore(previousResult, previousThrowable)
+                    } finally {
+                        Recursion.exit()
                     }
                 }
                 if (state.param.hasThrowable()) param.throwResult(state.param.throwable)
@@ -181,6 +187,58 @@ internal object XposedHookProvider : XposedBridge.HookProvider {
             invoke(callback, param)
         } catch (error: InvocationTargetException) {
             throw error.targetException
+        }
+    }
+
+    /**
+     * Hook callbacks that call back into hooked methods, tracked so the cycle can
+     * be named instead of only its consequence.
+     *
+     * A patch whose callback invokes a method that is itself hooked -- directly or
+     * through a call the host makes in between -- will recurse until the thread's
+     * stack is gone. Nothing above can report that usefully: ART exhausts the stack
+     * inside a native invoke, so the process dies with SIGSEGV and the tombstone
+     * is thousands of frames of the same three symbols with no Java frames left to
+     * read. That is what was observed here, on a "ComponentLayout" thread, at 2594
+     * frames of `handleCall -> Method_invoke -> handleCall`.
+     *
+     * So the cycle is recorded from the Java side, where the member names still
+     * exist, and reported once per threshold crossing. This is a diagnostic only:
+     * it neither breaks the cycle nor changes what a callback is allowed to do,
+     * because deciding that a patch is recursing and silently truncating it would
+     * hide a real defect behind a working-looking feature.
+     */
+    private object Recursion {
+
+        /** Deep enough that no legitimate patch nest is reported. */
+        private const val REPORT_AT = 24
+
+        /** Reported thresholds, so one runaway is described once and not per frame. */
+        private const val REPORT_EVERY = 512
+
+        // ThreadLocal.get() is @Nullable on Android whatever the type argument says,
+        // so every read here is treated as possibly absent rather than argued about.
+        private val stack: ThreadLocal<ArrayList<Member>> =
+            ThreadLocal.withInitial<ArrayList<Member>> { ArrayList(REPORT_AT * 2) }
+
+        fun enter(member: Member) {
+            val frames = stack.get() ?: return
+            frames.add(member)
+            val depth = frames.size
+            if (depth == REPORT_AT || (depth > REPORT_AT && depth % REPORT_EVERY == 0)) {
+                RuntimeLog.warn(
+                    "hook-recursion",
+                    "depth=$depth chain=" + frames.joinToString(" -> ") {
+                        "${it.declaringClass?.simpleName}.${it.name}"
+                    },
+                )
+            }
+        }
+
+        fun exit() {
+            val frames = stack.get() ?: return
+            if (frames.isNotEmpty()) frames.removeAt(frames.size - 1)
+            if (frames.isEmpty()) stack.remove()
         }
     }
 
