@@ -238,6 +238,36 @@ object StandaloneXposedInterface : XposedInterface {
     /**
      * `MethodHandles.Lookup.IMPL_LOOKUP`, read through `sun.misc.Unsafe`.
      * Null on a runtime that refuses, in which case the caller degrades.
+     *
+     * ## Why the diagnosis is written out
+     *
+     * The obvious reading of `NoSuchFieldException` for `IMPL_LOOKUP` is that
+     * this Android version removed the field. That is wrong, and the reason it
+     * is wrong is worth recording, because the fix is not the same either way.
+     *
+     * The field is in the boot image: a scan of the device's
+     * `/apex/com.android.art/javalib/core-oj.jar` finds both `IMPL_LOOKUP` and
+     * `unreflectSpecial`. ART does not answer `getDeclaredField` for hidden-API
+     * members, though -- `Class.getDeclaredField` reports a member it refuses to
+     * return as absent, with the same `No field ... (declaration of ... appears
+     * in ...)` message it uses for a member that genuinely is not there. So the
+     * exception is indistinguishable from absence, and has to be told apart.
+     *
+     * [diagnosePrivilegedLookupFailure] does that, and its answer is that the
+     * hidden-API policy is still in force in this process. That is expected
+     * here: Pine disables it by hooking six ART functions it finds *by name*,
+     * and on this build none of the six is in `libart.so`'s `.dynsym`:
+     *
+     *   2701 dynsym entries, 1922 defined, 1569 of them ART -- and
+     *   0 matching "DenyAccess" or a hiddenapi:: denial entry point.
+     *
+     * Pine's only other probe, `_ZN3art9ArtMethod8CopyFromEPS0_NS_11PointerSizeE`,
+     * *is* exported, which is why the hook engine itself works and why this went
+     * unnoticed: the bypass failing is silent, and the engine does not need it.
+     *
+     * The consequence is wider than this one field. Any patch that reflects into
+     * framework internals, or writes a `static final`, depends on the same
+     * policy being off, and on this device it is not.
      */
     private val privilegedLookup: MethodHandles.Lookup? by lazy {
         runCatching {
@@ -257,8 +287,58 @@ object StandaloneXposedInterface : XposedInterface {
             )
             getObject.invoke(unsafe, base, offset) as MethodHandles.Lookup
         }.getOrElse { error ->
-            RuntimeLog.warn("invoker", "IMPL_LOOKUP unavailable: ${error.javaClass.simpleName}: ${error.message}")
+            diagnosePrivilegedLookupFailure(error)
             null
+        }
+    }
+
+    /**
+     * Establish whether a refused `getDeclaredField` means "the field is not
+     * there" or "the hidden-API policy will not return it", and record enough to
+     * tell the two apart next time without a rebuild.
+     */
+    private fun diagnosePrivilegedLookupFailure(error: Throwable) {
+        RuntimeLog.warn(
+            "invoker",
+            "IMPL_LOOKUP unavailable: ${error.javaClass.simpleName}: ${error.message}",
+        )
+        val lookupClass = runCatching {
+            Class.forName("java.lang.invoke.MethodHandles\$Lookup")
+        }.getOrElse {
+            RuntimeLog.warn("invoker", "diagnostic: MethodHandles\$Lookup not loadable: $it")
+            return
+        }
+        val declared = runCatching { lookupClass.declaredFields.map { it.name } }
+            .getOrElse {
+                RuntimeLog.warn("invoker", "diagnostic: declaredFields refused: ${it.javaClass.simpleName}: ${it.message}")
+                return
+            }
+        RuntimeLog.info(
+            "invoker",
+            "diagnostic: MethodHandles\$Lookup declares ${declared.size} fields, " +
+                "IMPL_LOOKUP among them = ${"IMPL_LOOKUP" in declared}; " +
+                "names=${declared.sorted().joinToString(",")}",
+        )
+
+        // A field that is blocked rather than absent is the signature of a policy
+        // that is still enforced: pick members that are public API on an
+        // unsupported-but-known surface and see whether they come back. Each is
+        // individually harmless to read, and none is used for anything.
+        val probes = listOf(
+            "android.app.ActivityThread" to "mHiddenApiWarningShown",
+            "android.content.Context" to "mRestrictedThreadPolicy",
+            "java.lang.invoke.MethodHandles\$Lookup" to "IMPL_LOOKUP",
+        )
+        probes.forEach { (type, field) ->
+            runCatching { Class.forName(type).getDeclaredField(field) }
+                .onSuccess { RuntimeLog.info("invoker", "diagnostic: $type.$field is visible") }
+                .onFailure {
+                    RuntimeLog.info(
+                        "invoker",
+                        "diagnostic: $type.$field is not visible " +
+                            "(${it.javaClass.simpleName})",
+                    )
+                }
         }
     }
 

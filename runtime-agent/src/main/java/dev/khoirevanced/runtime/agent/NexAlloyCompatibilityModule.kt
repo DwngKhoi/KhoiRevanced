@@ -87,6 +87,12 @@ object NexAlloyCompatibilityModule {
             )
             val entry = loader.loadClass("io.github.nexalloy.MainHook")
                 .getDeclaredConstructor().newInstance()
+            // Mirror the patch set's own log before any payload code runs, so the
+            // earliest messages are captured. A patch that reports a failure
+            // through its logger instead of throwing is otherwise invisible
+            // outside logcat, which an injected process cannot be relied on to
+            // produce, and which the engine's own tracing overflows anyway.
+            NexAlloyLogBridge.install(loader)
             // XposedModule extends XposedInterfaceWrapper, and that wrapper throws
             // "Framework not attached" from every delegated call until
             // attachFramework runs. NexAlloy reaches XposedInterface from

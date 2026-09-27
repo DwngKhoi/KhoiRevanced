@@ -36,6 +36,12 @@ trap - EXIT
 
 : "${PACKAGE:?PROFILE must set PACKAGE}"
 APPLICATION_TIMEOUT_MS=${APPLICATION_TIMEOUT_MS:-15000}
+# Pine narrates every hook callback to logcat when this is 1. On a warm YouTube
+# start that is thousands of lines per second, which trips Android's per-process
+# log quota and makes the surviving buffer useless: the host's own diagnostics
+# are dropped alongside the noise. Only turn it on when the hook engine itself is
+# what is being investigated.
+PINE_DEBUG=${PINE_DEBUG:-0}
 STATUS_QUIET=0
 
 APP_DATA="/data/user/0/$PACKAGE"
@@ -168,6 +174,7 @@ write_config() {
         echo "profile=$PROFILE"
         echo "cache_dir=$CACHE_DIR"
         echo "application_timeout_ms=$APPLICATION_TIMEOUT_MS"
+    echo "pine_debug=$PINE_DEBUG"
     } > "$RUN_DIR/$pid.conf"
     uid=$(stat -c '%u' "$APP_DATA")
     chown "$uid:$uid" "$RUN_DIR/$pid.conf"
