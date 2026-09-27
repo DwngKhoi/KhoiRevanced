@@ -9,6 +9,7 @@
 #include <lsplant.hpp>
 
 #include <algorithm>
+#include <atomic>
 #include <cstdint>
 #include <cstring>
 #include <fstream>
@@ -43,6 +44,8 @@ struct FileSymbolTable {
     const char* strings = nullptr;
     size_t string_size = 0;
     uintptr_t load_bias = 0;
+    // Which ELF symbol table was used: SHT_SYMTAB or SHT_DYNSYM.
+    const char* source = "none";
 };
 
 std::mutex g_lock;
@@ -52,6 +55,35 @@ bool g_initialized = false;
 void* g_art = nullptr;
 ArtImage g_art_image;
 FileSymbolTable g_file_symtab;
+
+void log_error(const char* message) {
+    __android_log_print(ANDROID_LOG_ERROR, kTag, "%s", message);
+}
+
+// The status file the Kotlin side writes is the one diagnostic channel proven to
+// reach the controller. logcat output from an injected process is not reliably
+// visible, so mirror the native decisions into the same cache directory: a bare
+// "LSPlant ART backend initialization failed" says nothing about which of the
+// several ways it can fail was taken, and LSPlant itself reports none of the
+// symbols it could not resolve.
+std::string g_log_path;
+
+void log_line(const std::string& message) {
+    if (g_log_path.empty()) return;
+    std::ofstream out(g_log_path, std::ios::app);
+    if (out) out << message << '\n';
+}
+
+void log_to_cache(JNIEnv* env, jstring directory, const std::string& message) {
+    if (env == nullptr || directory == nullptr) return;
+    if (g_log_path.empty()) {
+        const char* chars = env->GetStringUTFChars(directory, nullptr);
+        if (chars == nullptr) return;
+        g_log_path = std::string(chars) + "/native-hook.log";
+        env->ReleaseStringUTFChars(directory, chars);
+    }
+    log_line(message);
+}
 
 void* hook_function(void* target, void* replacement) {
     void* backup = nullptr;
@@ -75,6 +107,40 @@ bool valid_range(const std::vector<uint8_t>& bytes, size_t offset, size_t length
     return offset <= bytes.size() && length <= bytes.size() - offset;
 }
 
+// Find a usable ELF symbol table in an already-parsed ELF image.
+//
+// SHT_SYMTAB is preferred but does not exist in a release libart.so: production
+// builds are stripped and keep only the dynamic symbol table. On the target
+// device libart.so has no SHT_SYMTAB at all, which is why ART symbol resolution
+// found nothing and LSPlant refused to initialise. The dynamic table is enough:
+// LSPlant asks for mangled names such as _ZN3art6mirror5Class11GetClassDefEv,
+// and of the 46 it references, the core ones LSPlant needs to start
+// (GetClassDef, ArtMethod::PrettyMethod, Thread::CurrentFromGdb,
+// Runtime::instance_, ArtMethod::SetNotIntrinsic, GetMethodShorty) are all
+// exported there. The names that are absent are alternative signatures for
+// other ART versions, which LSPlant treats as optional.
+bool adopt_symbol_table(const std::vector<uint8_t>& bytes, const Elf64_Shdr* sections,
+                        size_t section_count, uint32_t wanted_type, const char* label) {
+    for (size_t index = 0; index < section_count; ++index) {
+        const auto& section = sections[index];
+        if (section.sh_type != wanted_type || section.sh_entsize != sizeof(Elf64_Sym) ||
+            section.sh_link >= section_count ||
+            !valid_range(bytes, section.sh_offset, section.sh_size)) continue;
+        const auto& strings = sections[section.sh_link];
+        if (!valid_range(bytes, strings.sh_offset, strings.sh_size)) continue;
+        g_file_symtab.symbols =
+            reinterpret_cast<const Elf64_Sym*>(bytes.data() + section.sh_offset);
+        g_file_symtab.symbol_count = section.sh_size / sizeof(Elf64_Sym);
+        g_file_symtab.strings =
+            reinterpret_cast<const char*>(bytes.data() + strings.sh_offset);
+        g_file_symtab.string_size = strings.sh_size;
+        g_file_symtab.load_bias = g_art_image.load_bias;
+        g_file_symtab.source = label;
+        return true;
+    }
+    return false;
+}
+
 void load_file_symtab() {
     if (g_art_image.path.empty()) return;
     std::ifstream input(g_art_image.path, std::ios::binary);
@@ -85,22 +151,13 @@ void load_file_symtab() {
     const auto* header = reinterpret_cast<const Elf64_Ehdr*>(bytes.data());
     if (memcmp(header->e_ident, ELFMAG, SELFMAG) != 0 || header->e_ident[EI_CLASS] != ELFCLASS64 ||
         header->e_shentsize != sizeof(Elf64_Shdr) || header->e_shnum == 0 ||
-        !valid_range(bytes, header->e_shoff, static_cast<size_t>(header->e_shnum) * sizeof(Elf64_Shdr))) return;
-    const auto* sections = reinterpret_cast<const Elf64_Shdr*>(bytes.data() + header->e_shoff);
-    for (size_t index = 0; index < header->e_shnum; ++index) {
-        const auto& section = sections[index];
-        if (section.sh_type != SHT_SYMTAB || section.sh_entsize != sizeof(Elf64_Sym) ||
-            section.sh_link >= header->e_shnum ||
-            !valid_range(bytes, section.sh_offset, section.sh_size)) continue;
-        const auto& strings = sections[section.sh_link];
-        if (!valid_range(bytes, strings.sh_offset, strings.sh_size)) continue;
-        g_file_symtab.symbols = reinterpret_cast<const Elf64_Sym*>(bytes.data() + section.sh_offset);
-        g_file_symtab.symbol_count = section.sh_size / sizeof(Elf64_Sym);
-        g_file_symtab.strings = reinterpret_cast<const char*>(bytes.data() + strings.sh_offset);
-        g_file_symtab.string_size = strings.sh_size;
-        g_file_symtab.load_bias = g_art_image.load_bias;
-        return;
-    }
+        !valid_range(bytes, header->e_shoff,
+                     static_cast<size_t>(header->e_shnum) * sizeof(Elf64_Shdr))) return;
+    const auto* sections =
+        reinterpret_cast<const Elf64_Shdr*>(bytes.data() + header->e_shoff);
+    const size_t count = header->e_shnum;
+    if (adopt_symbol_table(bytes, sections, count, SHT_SYMTAB, "SHT_SYMTAB")) return;
+    (void)adopt_symbol_table(bytes, sections, count, SHT_DYNSYM, "SHT_DYNSYM");
 }
 
 void* resolve_file_symbol(std::string_view requested, bool prefix) {
@@ -117,18 +174,37 @@ void* resolve_file_symbol(std::string_view requested, bool prefix) {
     return nullptr;
 }
 
+// LSPlant resolves dozens of ART symbols through these two callbacks while it
+// initialises, and it gives no indication which one it could not satisfy when
+// Init returns false. Log each request and its answer, bounded so a failure
+// cannot flood the file.
+std::atomic<int> g_resolver_log_budget{160};
+
+void report_resolution(const char* kind, const std::string& requested, void* result) {
+    if (g_resolver_log_budget.fetch_sub(1) <= 0) return;
+    char buffer[32];
+    snprintf(buffer, sizeof(buffer), "%p", result);
+    log_line(std::string(kind) + " \"" + requested + "\" -> " + buffer);
+}
+
 void* resolve_art_symbol(std::string_view symbol) {
     // No dlopen handle is required, and none is available: see the comment in
     // nativeInitialize. Symbols are located in the libart image that is already
     // mapped, which is what LSPlant has to hook.
-    const std::string requested(symbol);
-    if (void* address = dlsym(RTLD_DEFAULT, requested.c_str())) return address;
-    return resolve_file_symbol(symbol, false);
+    void* address = resolve_file_symbol(symbol, false);
+    if (address == nullptr) {
+        const std::string requested(symbol);
+        address = dlsym(RTLD_DEFAULT, requested.c_str());
+    }
+    report_resolution("resolve", std::string(symbol), address);
+    return address;
 }
 
 void* resolve_art_symbol_prefix(std::string_view prefix) {
     // Resolve hidden ART symbols from the ELF symbol table when dlsym cannot see them.
-    return resolve_file_symbol(prefix, true);
+    void* address = resolve_file_symbol(prefix, true);
+    report_resolution("prefix", std::string(prefix), address);
+    return address;
 }
 
 HookRecord* find_record(JNIEnv* env, jobject member) {
@@ -138,31 +214,22 @@ HookRecord* find_record(JNIEnv* env, jobject member) {
     return nullptr;
 }
 
-void log_error(const char* message) {
-    __android_log_print(ANDROID_LOG_ERROR, kTag, "%s", message);
-}
-
-// The status file the Kotlin side writes is the one diagnostic channel proven to
-// reach the controller. logcat output from an injected process is not reliably
-// visible, so mirror the native decisions into the same cache directory: a bare
-// "LSPlant ART backend initialization failed" says nothing about which of the
-// several ways it can fail was taken.
-void log_to_cache(JNIEnv* env, jstring directory, const std::string& message) {
-    if (env == nullptr || directory == nullptr) return;
-    const char* chars = env->GetStringUTFChars(directory, nullptr);
-    if (chars == nullptr) return;
-    const std::string path = std::string(chars) + "/native-hook.log";
-    env->ReleaseStringUTFChars(directory, chars);
-    std::ofstream out(path, std::ios::app);
-    if (out) out << message << '\n';
-}
-}  // namespace
-
-extern "C" JNIEXPORT jboolean JNICALL
-Java_dev_khoirevanced_runtime_agent_NativeHookBackend_nativeInitialize(
-    JNIEnv* env, jobject, jstring cache_dir) {
+// Perform the one-time LSPlant initialisation.
+//
+// LSPlant documents that the JNIEnv passed to Init "should not have any
+// restriction for accessing hidden APIs" and that "you can obtain such a JNIEnv
+// in JNI_OnLoad()". Calling it from Kotlin, on the bootstrap thread, does not
+// satisfy that. On the target device Init returned false from there without ever
+// invoking the symbol resolver, so it was failing a precondition rather than on
+// symbol lookup, and the resolver tracing confirmed not a single request arrived.
+// The agent therefore initialises from JNI_OnLoad, before any Java code runs,
+// and this function is shared by both entry points.
+bool initialize_hook_backend(JNIEnv* env) {
     std::scoped_lock lock(g_lock);
-    if (g_initialized) return JNI_TRUE;
+    if (g_initialized) {
+        log_line("initialize_hook_backend: already initialized");
+        return true;
+    }
 
     // Never dlopen libart.so. The agent is loaded into the app's classloader
     // namespace, which is not the namespace that already mapped libart, so
@@ -173,24 +240,32 @@ Java_dev_khoirevanced_runtime_agent_NativeHookBackend_nativeInitialize(
     // libart was not in the loaded set.
     //
     // The image that is already mapped is located with dl_iterate_phdr instead,
-    // which needs no handle, and symbols in it are addressed as
-    // load_bias + st_value from the file's own symbol table. That is also the
-    // only way to reach the hidden ART symbols on Android, where libart exports
-    // almost nothing through .dynsym.
+    // which needs no handle, and the resolvers require none either: they
+    // address symbols as load_bias + st_value from the file's own symbol table.
+    // That is also the only way to reach ART's symbols on Android, where a
+    // release libart.so is stripped of SHT_SYMTAB and LSPlant asks for mangled
+    // names such as _ZN3art6mirror5Class11GetClassDefEv.
     dl_iterate_phdr(find_art_image, &g_art_image);
-    log_to_cache(env, cache_dir, "libart image path: " +
+    log_line("libart image path: " +
         (g_art_image.path.empty() ? std::string("<not found>") : g_art_image.path));
     if (g_art_image.path.empty()) {
         log_error("LSPlant could not locate libart.so image");
-        log_to_cache(env, cache_dir, "FAIL: dl_iterate_phdr did not locate libart.so");
-        return JNI_FALSE;
+        log_line("FAIL: dl_iterate_phdr did not locate libart.so");
+        return false;
     }
     load_file_symtab();
-    char bias[32];
-    snprintf(bias, sizeof(bias), "0x%llx",
+    char image_bias[32];
+    char table_bias[32];
+    snprintf(image_bias, sizeof(image_bias), "0x%llx",
+             static_cast<unsigned long long>(g_art_image.load_bias));
+    snprintf(table_bias, sizeof(table_bias), "0x%llx",
              static_cast<unsigned long long>(g_file_symtab.load_bias));
-    log_to_cache(env, cache_dir, "symtab symbols available: " +
-        std::to_string(g_file_symtab.symbol_count) + " load_bias=" + bias);
+    log_line(std::string("symbol table: ") + g_file_symtab.source +
+        " entries=" + std::to_string(g_file_symtab.symbol_count) +
+        " image_load_bias=" + image_bias + " table_load_bias=" + table_bias);
+    if (g_file_symtab.symbols == nullptr) {
+        log_line("FAIL: no SHT_SYMTAB and no SHT_DYNSYM usable in libart.so");
+    }
 
     lsplant::InitInfo info{
         .inline_hooker = hook_function,
@@ -205,10 +280,34 @@ Java_dev_khoirevanced_runtime_agent_NativeHookBackend_nativeInitialize(
     g_initialized = lsplant::Init(env, info);
     __android_log_print(g_initialized ? ANDROID_LOG_INFO : ANDROID_LOG_ERROR, kTag,
                         "LSPlant initialization %s", g_initialized ? "succeeded" : "failed");
-    log_to_cache(env, cache_dir, g_initialized
-        ? "lsplant::Init succeeded"
-        : "FAIL: lsplant::Init returned false");
-    return g_initialized ? JNI_TRUE : JNI_FALSE;
+    log_line(g_initialized ? "lsplant::Init succeeded" : "FAIL: lsplant::Init returned false");
+    return g_initialized;
+}
+
+}  // namespace
+
+// Entry point used from JNI_OnLoad, before any Java code runs. Exported so the
+// agent's own translation unit can call it.
+extern "C" __attribute__((visibility("default"))) jboolean
+dev_khoirevanced_initialize_hook_backend(JNIEnv* env, const char* log_path) {
+    if (env == nullptr) return JNI_FALSE;
+    if (log_path != nullptr && *log_path != '\0') g_log_path = log_path;
+    return initialize_hook_backend(env) ? JNI_TRUE : JNI_FALSE;
+}
+
+extern "C" JNIEXPORT jboolean JNICALL
+Java_dev_khoirevanced_runtime_agent_NativeHookBackend_nativeInitialize(
+    JNIEnv* env, jobject, jstring cache_dir) {
+    if (env == nullptr || cache_dir == nullptr) return JNI_FALSE;
+    if (g_log_path.empty()) {
+        const char* chars = env->GetStringUTFChars(cache_dir, nullptr);
+        if (chars == nullptr) return JNI_FALSE;
+        g_log_path = std::string(chars) + "/native-hook.log";
+        env->ReleaseStringUTFChars(cache_dir, chars);
+    }
+    // Normally JNI_OnLoad has already done this. Kept as a fallback so the
+    // failure is still reported through the status file rather than skipped.
+    return initialize_hook_backend(env) ? JNI_TRUE : JNI_FALSE;
 }
 
 extern "C" JNIEXPORT jintArray JNICALL
