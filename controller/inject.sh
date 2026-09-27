@@ -32,7 +32,7 @@ prepare_payload() {
     # first; it becomes executable after copying into the app runtime dir.
     [ -f "$PAYLOAD_DIR/khoirevanced-injector" ] || die "missing arm64 injector payload"
     [ -r "$PAYLOAD_DIR/libkhoirevanced_agent.so" ] || die "missing native agent payload"
-    [ -r "$PAYLOAD_DIR/libpine.so" ] || die "missing Pine hook-engine payload"
+    [ -r "$PAYLOAD_DIR/liblsplant.so" ] || die "missing LSPlant hook-engine payload"
     [ -r "$PAYLOAD_DIR/nexalloy.dexpack" ] || die "missing NexAlloy compatibility payload"
     [ -r "$PAYLOAD_DIR/libdexkit.so" ] || die "missing DexKit payload"
     [ -r "$PAYLOAD_DIR/classes.dex" ] || die "missing DEX payload"
@@ -41,7 +41,7 @@ prepare_payload() {
     mkdir -p "$RUN_DIR" "$CACHE_DIR"
     cp -f "$PAYLOAD_DIR/khoirevanced-injector" "$RUNTIME_DIR/"
     cp -f "$PAYLOAD_DIR/libkhoirevanced_agent.so" "$RUNTIME_DIR/"
-    cp -f "$PAYLOAD_DIR/libpine.so" "$RUNTIME_DIR/"
+    cp -f "$PAYLOAD_DIR/liblsplant.so" "$RUNTIME_DIR/"
     # DexClassLoader uses the APK/ZIP suffix to select the multidex APK path.
     # Keep the build artifact named .dexpack, but expose it to ART as a real
     # APK so classes.dex through classes19.dex are all discovered.
@@ -52,10 +52,10 @@ prepare_payload() {
     # payload immutable and root-owned; only cache/run are app-owned.
     chown root:root "$RUNTIME_DIR/khoirevanced-injector" \
         "$RUNTIME_DIR/libkhoirevanced_agent.so" "$RUNTIME_DIR/classes.dex"
-    chown root:root "$RUNTIME_DIR/libpine.so"
+    chown root:root "$RUNTIME_DIR/liblsplant.so"
     chown root:root "$RUNTIME_DIR/nexalloy.apk" "$RUNTIME_DIR/libdexkit.so"
     chmod 0755 "$RUNTIME_DIR/khoirevanced-injector"
-    chmod 0444 "$RUNTIME_DIR/libkhoirevanced_agent.so" "$RUNTIME_DIR/libpine.so" \
+    chmod 0444 "$RUNTIME_DIR/libkhoirevanced_agent.so" "$RUNTIME_DIR/liblsplant.so" \
         "$RUNTIME_DIR/libdexkit.so" "$RUNTIME_DIR/nexalloy.apk" "$RUNTIME_DIR/classes.dex"
     chown "$uid:$uid" "$RUNTIME_DIR" "$RUN_DIR" "$CACHE_DIR"
     chmod 0700 "$RUNTIME_DIR" "$RUN_DIR" "$CACHE_DIR"

@@ -6,18 +6,25 @@ import dev.khoirevanced.runtime.api.HookHandle
 import dev.khoirevanced.runtime.api.MethodHookCallback
 import java.lang.reflect.Member
 
-/** JNI facade. ART-version-specific implementations live exclusively in native/. */
+/** JNI facade for the LSPlant ART backend packaged with the standalone runtime. */
 object NativeHookBackend : HookBackend {
     override val capabilities: Set<HookCapability>
-        get() = nativeCapabilities().mapTo(linkedSetOf()) { HookCapability.entries[it] }
+        get() = nativeCapabilities().mapTo(linkedSetOf()) { ordinal ->
+            HookCapability.entries.getOrElse(ordinal) {
+                error("Native hook backend returned invalid capability ordinal: $ordinal")
+            }
+        }
 
     fun initialize(config: RuntimeConfig) {
-        check(nativeInitialize(config.cacheDir)) { "Native ART backend initialization failed" }
+        check(nativeInitialize(config.cacheDir)) { "LSPlant ART backend initialization failed" }
+        check(HookCapability.METHOD in capabilities && HookCapability.INVOKE_ORIGINAL in capabilities) {
+            "LSPlant ART backend started without required capabilities: $capabilities"
+        }
     }
 
     override fun hook(member: Member, callback: MethodHookCallback): HookHandle {
-        val token = nativeHook(member, callback)
-        check(token != 0L) { "Could not hook $member" }
+        val token = nativeHook(member, LsplantHookDispatcher(member, callback))
+        check(token != 0L) { "LSPlant could not hook $member" }
         return HookHandle { nativeUnhook(token) }
     }
 
@@ -28,7 +35,7 @@ object NativeHookBackend : HookBackend {
 
     private external fun nativeInitialize(cacheDir: String): Boolean
     private external fun nativeCapabilities(): IntArray
-    private external fun nativeHook(member: Member, callback: MethodHookCallback): Long
+    private external fun nativeHook(member: Member, dispatcher: Any): Long
     private external fun nativeUnhook(token: Long)
     private external fun nativeInvokeOriginal(
         member: Member,

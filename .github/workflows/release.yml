@@ -8,7 +8,9 @@ on:
 jobs:
   build:
 
-    runs-on: ubuntu-latest
+    # Keep in sync with android.yml: the runtime bundle is produced by
+    # tools/package-runtime.ps1, which is Windows-only today.
+    runs-on: windows-latest
     permissions:
       contents: write
 
@@ -24,9 +26,6 @@ jobs:
         distribution: 'temurin'
         cache: gradle
 
-    - name: Grant execute permission for gradlew
-      run: chmod +x gradlew
-
     - name: Write key
       run: |
         echo KEYSTORE_PASSWORD=${{ secrets.KEYSTORE_PASSWORD }} > signing.properties
@@ -35,12 +34,21 @@ jobs:
         echo KEYSTORE_FILE=../key.jks >> signing.properties
         echo ${{ secrets.KEYSTORE }} | base64 --decode > key.jks
 
-    - name: Build Release
-      run: ./gradlew assembleRelease
+    - name: Package standalone runtime
+      shell: pwsh
+      run: ./tools/package-runtime.ps1 -Configuration Release
 
-    - run: |
-        cd app/build/outputs/apk/release/
-        mv app-release.apk NexAlloy-${{ github.ref_name }}.apk
-        gh release create --prerelease ${{ github.ref_name }} NexAlloy-${{ github.ref_name }}.apk
+    - name: Build manager Release
+      run: ./gradlew.bat :manager:assembleRelease --no-daemon --console=plain
+
+    - name: Publish release
+      shell: pwsh
+      run: |
+        $ErrorActionPreference = 'Stop'
+        $apk = Get-ChildItem 'manager/build/outputs/apk/release' -Filter '*.apk' | Select-Object -First 1
+        if (-not $apk) { throw 'Manager release APK was not produced' }
+        $target = "KhoiRevanced-${{ github.ref_name }}.apk"
+        Move-Item -Force $apk.FullName $target
+        gh release create --prerelease '${{ github.ref_name }}' $target
       env:
         GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

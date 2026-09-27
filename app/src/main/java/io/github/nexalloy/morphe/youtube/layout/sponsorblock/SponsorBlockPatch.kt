@@ -10,7 +10,6 @@ import app.morphe.extension.shared.sponsorblock.objects.SegmentCategoryPreferenc
 import app.morphe.extension.shared.sponsorblock.ui.SponsorBlockAboutPreference
 import app.morphe.extension.youtube.sponsorblock.YouTubeSponsorBlockConfig
 import app.morphe.extension.youtube.sponsorblock.preferences.SponsorBlockApiUrlPreference
-import app.morphe.extension.youtube.sponsorblock.preferences.SponsorBlockChannelWhitelistPreference
 import app.morphe.extension.youtube.sponsorblock.preferences.SponsorBlockCreateSegmentSwitchPreference
 import app.morphe.extension.youtube.sponsorblock.preferences.SponsorBlockGuidelinesPreference
 import app.morphe.extension.youtube.sponsorblock.preferences.SponsorBlockImportExportPreference
@@ -131,11 +130,6 @@ val SponsorBlock = patch(
                 NonInteractivePreference(
                     key = "morphe_sb_api_url",
                     tag = SponsorBlockApiUrlPreference::class.java,
-                    selectable = true
-                ),
-                NonInteractivePreference(
-                    key = "morphe_sb_channel_whitelist",
-                    tag = SponsorBlockChannelWhitelistPreference::class.java,
                     selectable = true
                 ),
                 SwitchPreference("morphe_sb_toast_on_whitelisted_channel", summary = true),

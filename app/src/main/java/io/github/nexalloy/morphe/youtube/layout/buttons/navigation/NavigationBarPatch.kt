@@ -1,16 +1,18 @@
 package io.github.nexalloy.morphe.youtube.layout.buttons.navigation
 
+import android.view.View
 import android.widget.TextView
 import app.morphe.extension.youtube.patches.NavigationBarPatch
 import io.github.nexalloy.morphe.shared.misc.settings.preference.PreferenceScreenPreference
 import io.github.nexalloy.morphe.shared.misc.settings.preference.PreferenceScreenPreference.Sorting
 import io.github.nexalloy.morphe.shared.misc.settings.preference.SwitchPreference
 import io.github.nexalloy.morphe.youtube.insertLiteralOverride
+import io.github.nexalloy.morphe.youtube.misc.navigation.InitializeBottomBarContainerFingerprint
 import io.github.nexalloy.morphe.youtube.misc.navigation.NavigationBarHook
+import io.github.nexalloy.morphe.youtube.misc.navigation.bottomBarContainerId
 import io.github.nexalloy.morphe.youtube.misc.navigation.hookNavigationButtonCreated
 import io.github.nexalloy.morphe.youtube.misc.playservice.VersionCheck
 import io.github.nexalloy.morphe.youtube.misc.playservice.is_20_31_or_greater
-import io.github.nexalloy.morphe.youtube.misc.playservice.is_20_46_or_greater
 import io.github.nexalloy.morphe.youtube.misc.settings.PreferenceScreen
 import io.github.nexalloy.patch
 import io.github.nexalloy.scopedHook
@@ -35,7 +37,7 @@ val NavigationBar = patch(
 //        ListPreference("morphe_show_settings_button_index"),   // TODO PivotBarRenderer proto
 //        SwitchPreference("morphe_show_settings_button_type", summary = true),  // TODO PivotBarRenderer proto
         SwitchPreference("morphe_swap_create_with_notifications_button", summary = true),
-//        SwitchPreference("morphe_hide_navigation_bar"),        // TODO addBottomBarContainerHook
+        SwitchPreference("morphe_hide_navigation_bar"),
 //        SwitchPreference("morphe_narrow_navigation_buttons", summary = true),  // TODO PivotBarChanged/PivotBarStyle METHOD_MID
         SwitchPreference("morphe_hide_navigation_button_labels"),
         SwitchPreference("morphe_navigation_bar_animations", summary = true),
@@ -78,20 +80,31 @@ val NavigationBar = patch(
         NavigationBarPatch.navigationTabCreated(button, view)
     }
 
-    // TODO Hide navigation bar — addBottomBarContainerHook
-
-    // Force on/off translucent effect on status bar and navigation buttons.
-    // Translucent status bar.
-    insertLiteralOverride(45400535L, NavigationBarPatch::useTranslucentNavigation)
-    // Translucent system buttons feature flag.
-    insertLiteralOverride(45632194L, NavigationBarPatch::useTranslucentNavigation)
-    // Translucent navigation bar buttons feature flag.
-    insertLiteralOverride(45630927L, NavigationBarPatch::useTranslucentNavigation)
-
-    if (is_20_46_or_greater) {
-        // Feature interferes with translucent status bar and must be forced off.
-        insertLiteralOverride(45736608L, NavigationBarPatch::allowCollapsingToolbarLayout)
-    }
+    // Hide the navigation bar and paint over the translucent system bars.
+    //
+    // NexAlloy v1.43.0 stopped forcing the `useTranslucentNavigation` and
+    // `allowCollapsingToolbarLayout` feature flags off. Those flags also switch
+    // the app out of edge-to-edge, which moves the whole window layout and
+    // breaks every measurement against it, so upstream now hooks the bottom bar
+    // container instead. `addBottomBarContainerHook` is a bytecode-insertion
+    // helper, so the standalone runtime reaches the same view by hooking the
+    // public `addOnLayoutChangeListener` API and matching the container id.
+    InitializeBottomBarContainerFingerprint.hookMethod(
+        scopedHook(
+            DexMethod(
+                "Landroid/view/View;->addOnLayoutChangeListener" +
+                        "(Landroid/view/View\$OnLayoutChangeListener;)V"
+            ).toMethod()
+        ) {
+            val containerId = bottomBarContainerId
+            after {
+                val container = it.thisObject as View
+                if (container.id != containerId) return@after
+                NavigationBarPatch.setNavigationBarOpaque(container)
+                NavigationBarPatch.hideNavigationBar(container)
+            }
+        }
+    )
 
     // Animated navigation tabs.
     insertLiteralOverride(45680008L, NavigationBarPatch::useAnimatedNavigationButtons)

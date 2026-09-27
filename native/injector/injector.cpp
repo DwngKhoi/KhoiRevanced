@@ -133,6 +133,23 @@ std::optional<uintptr_t> remote_call(
     return result.regs[0];
 }
 
+bool read_remote(pid_t pid, uintptr_t source, void* destination, size_t size) {
+    iovec local{destination, size};
+    iovec remote{reinterpret_cast<void*>(source), size};
+    return process_vm_readv(pid, &local, 1, &remote, 1, 0) == static_cast<ssize_t>(size);
+}
+
+std::string read_remote_c_string(pid_t pid, uintptr_t source) {
+    std::string output;
+    for (size_t offset = 0; offset < 4096; ++offset) {
+        char value = 0;
+        if (!read_remote(pid, source + offset, &value, sizeof(value))) break;
+        if (value == 0) break;
+        output.push_back(value);
+    }
+    return output;
+}
+
 bool write_remote(pid_t pid, uintptr_t destination, const void* source, size_t size) {
     iovec local{const_cast<void*>(source), size};
     iovec remote{reinterpret_cast<void*>(destination), size};
@@ -192,8 +209,9 @@ int main(int argc, char** argv) {
     }
     auto remote_mmap = remote_symbol(pid, "mmap");
     auto remote_dlopen = remote_symbol(pid, "dlopen");
-    if (!remote_mmap || !remote_dlopen) {
-        fprintf(stderr, "could not resolve remote mmap/dlopen\n");
+    auto remote_dlerror = remote_symbol(pid, "dlerror");
+    if (!remote_mmap || !remote_dlopen || !remote_dlerror) {
+        fprintf(stderr, "could not resolve remote mmap/dlopen/dlerror\n");
         return 67;
     }
 
@@ -215,7 +233,11 @@ int main(int argc, char** argv) {
     std::array<uintptr_t, 8> dlopen_args{*remote_buffer, RTLD_NOW | RTLD_GLOBAL, 0, 0, 0, 0, 0, 0};
     auto handle = remote_call(pid, *remote_dlopen, dlopen_args);
     if (!handle || *handle == 0) {
-        fprintf(stderr, "remote dlopen returned null\n");
+        const std::array<uintptr_t, 8> no_arguments{};
+        const auto remote_error = remote_call(pid, *remote_dlerror, no_arguments);
+        const std::string detail = remote_error && *remote_error != 0
+            ? read_remote_c_string(pid, *remote_error) : "<dlerror unavailable>";
+        fprintf(stderr, "remote dlopen returned null: %s\n", detail.c_str());
         return 70;
     }
     printf("injected %s into pid %d (handle=0x%lx)\n", resolved, pid, *handle);

@@ -23,6 +23,10 @@ val gitCommitDateProvider = providers.exec {
 
 android {
     namespace = "io.github.nexalloy"
+    // Pin the NDK to the version the injector, the LSPlant/Dobby agent and
+    // tools/package-runtime.ps1 are all built against. Without this, AGP falls
+    // back to its own default NDK and warns that it disagrees with ndk.dir.
+    ndkVersion = "25.2.9519653"
 
     defaultConfig {
         applicationId = "io.github.chsbuffer.revancedxposed"
@@ -339,5 +343,36 @@ androidComponents {
         variant.sources.res?.addGeneratedSourceDirectory(
             resTask, CopyResourcesTask::outputDirectory
         )
+    }
+}
+
+/**
+ * The fingerprint unit tests fingerprint real host apps, so they need actual
+ * YouTube / YouTube Music / Reddit APKs in `app/binaries/`. Those are
+ * proprietary and gitignored, so a fresh clone has none.
+ *
+ * `FilePathArgumentsProvider` throws when the folder is missing and
+ * `@ParameterizedClass` then fails with a `TemplateInvocationValidationException`
+ * before any condition can disable it, which made `./gradlew build` fail for
+ * every contributor without the fixtures. Skip the test tasks instead, so the
+ * build is green by default and the tests still run as soon as APKs are present.
+ */
+val apkFixtureDir = layout.projectDirectory.dir("binaries")
+
+tasks.withType<Test>().configureEach {
+    val fixturesDir = apkFixtureDir
+    val taskPath = path
+    onlyIf {
+        val fixtures = fixturesDir.asFile
+        // `app/binaries/` ships a .gitignore, so require real APK files rather
+        // than just a non-empty directory.
+        val present = fixtures.listFiles()?.any { it.isFile && it.extension == "apk" } == true
+        if (!present) {
+            logger.lifecycle(
+                "Skipping $taskPath: no APK fixtures in ${fixtures.absolutePath}. " +
+                    "See DEVELOPMENT.md for the expected file names."
+            )
+        }
+        present
     }
 }

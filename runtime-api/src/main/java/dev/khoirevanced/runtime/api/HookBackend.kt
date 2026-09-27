@@ -34,7 +34,7 @@ abstract class MethodHookCallback {
     open fun after(param: HookParam) = Unit
 }
 
-class HookParam internal constructor(
+class HookParam(
     val member: Member,
     var receiver: Any?,
     val args: Array<Any?>,

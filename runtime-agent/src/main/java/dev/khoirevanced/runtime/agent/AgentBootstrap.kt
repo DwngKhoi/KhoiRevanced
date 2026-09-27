@@ -23,16 +23,16 @@ object AgentBootstrap {
             // with the payload's class loader.
             System.load(parsed.agentPath)
             RuntimeDiagnostics.stage(parsed, "agent-library-loaded")
+            NativeHookBackend.initialize(parsed)
+            RuntimeDiagnostics.stage(
+                parsed,
+                "lsplant-ready",
+                NativeHookBackend.capabilities.joinToString(),
+            )
+            HookRuntime.install(NativeHookBackend)
+            LsplantXposedHookProvider.install()
             val app = waitForApplication(parsed.applicationTimeoutMs)
             RuntimeDiagnostics.stage(parsed, "application-ready", app.packageName)
-            PineHookRuntime.initialize(parsed)
-            RuntimeDiagnostics.stage(parsed, "pine-ready", PineHookRuntime.status)
-            check(PineHookRuntime.status == "pine-xposed-ready") {
-                "Pine ART backend is unavailable: ${PineHookRuntime.status}"
-            }
-            NativeHookBackend.initialize(parsed)
-            RuntimeDiagnostics.stage(parsed, "native-backend-ready")
-            HookRuntime.install(NativeHookBackend)
             RuntimeDiagnostics.stage(parsed, "nexalloy-loading", parsed.modulePath ?: "none")
             NexAlloyCompatibilityModule.load(app, parsed)
             RuntimeDiagnostics.stage(parsed, "nexalloy-load-finished", NexAlloyCompatibilityModule.status)
@@ -44,7 +44,8 @@ object AgentBootstrap {
             RuntimeDiagnostics.record(
                 parsed,
                 state = "ready",
-                detail = "engine=${PineHookRuntime.status}; module=${NexAlloyCompatibilityModule.status}; capabilities=${NativeHookBackend.capabilities.joinToString()}"
+                detail = "engine=lsplant; module=${NexAlloyCompatibilityModule.status}; " +
+                    "capabilities=${NativeHookBackend.capabilities.joinToString()}",
             )
             Log.i(TAG, "Runtime attached to ${app.packageName}; profile=${parsed.profile}")
         }.onFailure { error ->

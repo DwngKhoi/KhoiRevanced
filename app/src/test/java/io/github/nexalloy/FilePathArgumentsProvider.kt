@@ -15,12 +15,14 @@ class FilePathArgumentsProvider : ArgumentsProvider {
         parameters: ParameterDeclarations,
         context: ExtensionContext
     ): Stream<out Arguments> {
-        println(Path(".").toAbsolutePath())
-        val projectDir = Paths.get(".") //.toAbsolutePath().normalize()
+        val projectDir = Paths.get(".")
         val testInputPath = projectDir.resolve("binaries")
 
-        if (!Files.exists(testInputPath)) {
-            throw IllegalStateException("APKs folder not found: $testInputPath")
+        if (!Files.isDirectory(testInputPath)) {
+            throw IllegalStateException(
+                "APK fixtures folder not found: ${testInputPath.toAbsolutePath()}. " +
+                    "The fingerprint tests need real host APKs; see DEVELOPMENT.md."
+            )
         }
 
         return Files.walk(testInputPath).filter { path ->

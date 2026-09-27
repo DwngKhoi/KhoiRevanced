@@ -8,10 +8,6 @@ pluginManagement {
             }
         }
         mavenCentral()
-        // Only :nexalloy-payload uses the legacy compile-time Xposed API while
-        // converting upstream patches into the embedded dexpack. The product
-        // APK/runtime never resolves or installs this API.
-        maven(url = "https://api.xposed.info")
         gradlePluginPortal()
     }
 }

@@ -18,6 +18,15 @@
 local.properties
 .kotlin
 
+# Local agent/tooling scratch space (worktrees, per-machine settings).
+.claude/
+
+# Local copies of assets that already live in the source tree:
+#   icon_app.png is byte-identical to
+#   manager/src/main/res/drawable/khoirevanced_icon.png
+/icon_app.png
+/qr.jpg
+
 # Developer checkout used to refresh the vendored Pine runtime artifacts.
 /third_party/pine/
 

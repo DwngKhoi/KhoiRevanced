@@ -177,7 +177,7 @@ void bootstrap() {
     jstring dex = env->NewStringUTF(dex_path);
     jstring cache = env->NewStringUTF(cache_path);
     // All runtime native libraries are placed next to classes.dex.  Supplying
-    // this search path lets the payload class loader resolve libpine.so without
+    // this search path lets the payload class loader resolve its native bridge without
     // relying on the host APK's native-library directory.
     const std::string dex_file(dex_path);
     const size_t slash = dex_file.rfind('/');

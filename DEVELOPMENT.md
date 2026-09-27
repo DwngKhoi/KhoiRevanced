@@ -220,6 +220,20 @@ This project shares extension code with the upstream project, located at `./reva
 
 ## Unit Testing
 
-Refer to [FingerprintsKtTest.kt](app/src/test/java/io/github/nexalloy/morphe/FingerprintsKtTest.kt) for testing examples.
+Refer to [FingerprintsKtTest.kt](app/src/test/java/io/github/nexalloy/FingerprintsKtTest.kt) for testing examples.
 
-For running tests, place necessary APKs into the `./app/binaries/` directory. APK filenames should be prefixed with their respective package names (e.g., `com.example.app-1.0.0.apk`).
+For running the fingerprint tests, place necessary APKs into the
+`./app/binaries/` directory. APK filenames should be prefixed with their
+respective package names (e.g., `com.google.android.youtube-21.36.42.apk`).
+
+These host APKs are proprietary and therefore gitignored, so a fresh clone has
+none and `:nexalloy-payload:testDebugUnitTest` reports itself as skipped rather
+than failing. Drop the APKs in to actually exercise the fingerprints:
+
+```powershell
+Copy-Item D:\path\to\com.google.android.youtube-21.36.42.apk app\binaries\
+.\gradlew.bat :nexalloy-payload:testDebugUnitTest
+```
+
+The runtime modules have their own fixture-free unit tests
+(`:runtime-api:test`, `:runtime-agent:test`) and always run.

@@ -11,10 +11,16 @@ module installation step.
 Manager APK
   └─ assets/KhoiRevanced.sh
        ├─ root controller (`controller/inject.sh`)
-       ├─ arm64 injector
-       ├─ ART agent + Pine runtime
+       ├─ arm64 ptrace injector
+       ├─ ART agent (LSPlant + Dobby inline hooking)
        └─ NexAlloy-derived patch dexpack
 ```
+
+The hook engine is LSPlant with Dobby as the inline hooker, both vendored under
+`third_party/`. Pine's `libpine.so` is deliberately **not** shipped and Pine is
+never initialized; only Pine's `de.robv.android.xposed` API classes are used, and
+`XposedBridge.setHookProvider` re-routes every `hookMethod` call made by the
+patch set into the LSPlant backend.
 
 The manager requests root through `su`, extracts the shell bundle into its
 private cache, and invokes:
@@ -43,6 +49,16 @@ the existing patch set can be migrated incrementally. Those interfaces are
 bundled into the runtime payload; the installed manager and root controller do
 not depend on LSPosed.
 
+## Upstream
+
+The patch set is tracked as a Git submodule pointing at
+[NexAlloy/morphe-patches](https://github.com/NexAlloy/morphe-patches) branch
+`nexalloy`, currently **v1.43.0** (`c92e718f8`). `app/` is KhoiRevanced's own
+port layer that re-expresses those patches as runtime hooks, so it must be kept
+in step with the submodule: when upstream renames or removes an extension entry
+point, the corresponding reference in `app/` has to be migrated too, otherwise
+`:nexalloy-payload` stops compiling.
+
 ## Build
 
 Requirements:
@@ -52,16 +68,19 @@ Requirements:
 - NDK `25.2.9519653`
 - arm64-v8a target device with a root manager
 
-Build the manager when an existing `dist/KhoiRevanced.sh` is available:
-
-```powershell
-.\gradlew.bat :manager:assembleDebug --no-daemon
-```
-
-Build the complete runtime bundle and embed it in the manager APK:
+The documented end-to-end entry point packages the runtime and then builds the
+manager:
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File .\tools\build-manager.ps1
+```
+
+`:manager:assembleDebug` fails fast when `dist/KhoiRevanced.sh` is missing or
+truncated, so a green manager build always implies a complete payload. Building
+the manager alone works only if the bundle already exists:
+
+```powershell
+.\gradlew.bat :manager:assembleDebug --no-daemon
 ```
 
 The generated product is:
@@ -76,6 +95,9 @@ For a direct root test without installing the manager:
 adb push .\dist\KhoiRevanced.sh /data/local/tmp/
 adb shell "su -c 'sh /data/local/tmp/KhoiRevanced.sh launch youtube'"
 ```
+
+See [docs/TESTING.md](docs/TESTING.md) for the readiness criteria and
+[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the injection sequence.
 
 ## Supported profiles
 

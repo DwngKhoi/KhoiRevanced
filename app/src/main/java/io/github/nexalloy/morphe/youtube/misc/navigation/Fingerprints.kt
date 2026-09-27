@@ -2,12 +2,14 @@ package io.github.nexalloy.morphe.youtube.misc.navigation
 
 import io.github.nexalloy.morphe.AccessFlags
 import io.github.nexalloy.morphe.Fingerprint
+import io.github.nexalloy.morphe.Opcode
 import io.github.nexalloy.morphe.ResourceType
 import io.github.nexalloy.morphe.accessFlags
 import io.github.nexalloy.morphe.findClassDirect
 import io.github.nexalloy.morphe.findMethodDirect
 import io.github.nexalloy.morphe.findMethodListDirect
 import io.github.nexalloy.morphe.fingerprint
+import io.github.nexalloy.morphe.methodCall
 import io.github.nexalloy.morphe.resourceLiteral
 import io.github.nexalloy.morphe.resourceMappings
 import io.github.nexalloy.morphe.returns
@@ -24,6 +26,31 @@ object ToolbarLayoutFingerprint : Fingerprint(
     accessFlags = listOf(AccessFlags.CONSTRUCTOR),
     filters = listOf(
         resourceLiteral(ResourceType.ID, "toolbar_container")
+    )
+)
+
+val bottomBarContainerId get() = resourceMappings["id", "bottom_bar_container"]
+
+/**
+ * The `bottom_bar_container` layout listener NexAlloy v1.43.0 hangs its
+ * navigation-bar hooks on.
+ *
+ * Upstream reads the container out of the `addOnLayoutChangeListener` call site
+ * while patching bytecode. The standalone runtime cannot rewrite call sites, so
+ * this fingerprint only proves the listener exists; the container itself is
+ * resolved at hook time by matching the receiver's `bottom_bar_container` id.
+ */
+object InitializeBottomBarContainerFingerprint : Fingerprint(
+    name = "run",
+    accessFlags = listOf(AccessFlags.PUBLIC, AccessFlags.FINAL),
+    returnType = "V",
+    filters = listOf(
+        resourceLiteral(ResourceType.ID, "bottom_bar_container"),
+        methodCall(
+            opcode = Opcode.INVOKE_VIRTUAL,
+            smali = "Landroid/view/View;->addOnLayoutChangeListener" +
+                    "(Landroid/view/View\$OnLayoutChangeListener;)V",
+        ),
     )
 )
 
