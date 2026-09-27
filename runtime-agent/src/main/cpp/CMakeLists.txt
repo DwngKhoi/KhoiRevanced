@@ -32,3 +32,17 @@ target_include_directories(khoirevanced_agent PRIVATE
 )
 
 target_link_libraries(khoirevanced_agent PRIVATE log dl lsplant dobby)
+
+# Do NOT add a DT_RUNPATH of $ORIGIN to satisfy the liblsplant.so dependency.
+#
+# The obvious ways all fail here. target_link_options with CMake's LINKER: item
+# parser emits "$$ORIGIN"; -Wl,-rpath written directly is escaped to
+# "$$$$ORIGIN" in the generated ninja link line and the NDK toolchain then
+# reduces that to a literal "$$ORIGIN" in DT_RUNPATH; INSTALL_RPATH with
+# BUILD_WITH_INSTALL_RPATH and BUILD_RPATH are both stripped from shared
+# libraries by the toolchain. A literal "$$ORIGIN" is worse than no runpath.
+#
+# The dependency is satisfied instead by the injector preloading liblsplant.so
+# into the target's linker namespace before it loads the agent, which is the
+# approach the Android linker actually resolves DT_NEEDED against. See the
+# comment in native/injector/injector.cpp.

@@ -118,14 +118,15 @@ void* resolve_file_symbol(std::string_view requested, bool prefix) {
 }
 
 void* resolve_art_symbol(std::string_view symbol) {
-    if (g_art == nullptr) return nullptr;
+    // No dlopen handle is required, and none is available: see the comment in
+    // nativeInitialize. Symbols are located in the libart image that is already
+    // mapped, which is what LSPlant has to hook.
     const std::string requested(symbol);
-    if (void* address = dlsym(g_art, requested.c_str())) return address;
+    if (void* address = dlsym(RTLD_DEFAULT, requested.c_str())) return address;
     return resolve_file_symbol(symbol, false);
 }
 
 void* resolve_art_symbol_prefix(std::string_view prefix) {
-    if (g_art == nullptr) return nullptr;
     // Resolve hidden ART symbols from the ELF symbol table when dlsym cannot see them.
     return resolve_file_symbol(prefix, true);
 }
@@ -140,26 +141,56 @@ HookRecord* find_record(JNIEnv* env, jobject member) {
 void log_error(const char* message) {
     __android_log_print(ANDROID_LOG_ERROR, kTag, "%s", message);
 }
+
+// The status file the Kotlin side writes is the one diagnostic channel proven to
+// reach the controller. logcat output from an injected process is not reliably
+// visible, so mirror the native decisions into the same cache directory: a bare
+// "LSPlant ART backend initialization failed" says nothing about which of the
+// several ways it can fail was taken.
+void log_to_cache(JNIEnv* env, jstring directory, const std::string& message) {
+    if (env == nullptr || directory == nullptr) return;
+    const char* chars = env->GetStringUTFChars(directory, nullptr);
+    if (chars == nullptr) return;
+    const std::string path = std::string(chars) + "/native-hook.log";
+    env->ReleaseStringUTFChars(directory, chars);
+    std::ofstream out(path, std::ios::app);
+    if (out) out << message << '\n';
+}
 }  // namespace
 
 extern "C" JNIEXPORT jboolean JNICALL
 Java_dev_khoirevanced_runtime_agent_NativeHookBackend_nativeInitialize(
-    JNIEnv* env, jobject, jstring) {
+    JNIEnv* env, jobject, jstring cache_dir) {
     std::scoped_lock lock(g_lock);
     if (g_initialized) return JNI_TRUE;
 
-    g_art = dlopen("libart.so", RTLD_NOW | RTLD_NOLOAD);
-    if (g_art == nullptr) g_art = dlopen("libart.so", RTLD_NOW);
-    if (g_art == nullptr) {
-        log_error("LSPlant initialization could not open libart.so");
-        return JNI_FALSE;
-    }
+    // Never dlopen libart.so. The agent is loaded into the app's classloader
+    // namespace, which is not the namespace that already mapped libart, so
+    // dlopen("libart.so") does not find it there and instead pulls a second
+    // copy of the runtime into a process that is already running. That aborts
+    // the process outright -- observed as a tombstone with frames in
+    // libkhoirevanced_agent.so, right after the RTLD_NOLOAD probe reported that
+    // libart was not in the loaded set.
+    //
+    // The image that is already mapped is located with dl_iterate_phdr instead,
+    // which needs no handle, and symbols in it are addressed as
+    // load_bias + st_value from the file's own symbol table. That is also the
+    // only way to reach the hidden ART symbols on Android, where libart exports
+    // almost nothing through .dynsym.
     dl_iterate_phdr(find_art_image, &g_art_image);
+    log_to_cache(env, cache_dir, "libart image path: " +
+        (g_art_image.path.empty() ? std::string("<not found>") : g_art_image.path));
     if (g_art_image.path.empty()) {
         log_error("LSPlant could not locate libart.so image");
+        log_to_cache(env, cache_dir, "FAIL: dl_iterate_phdr did not locate libart.so");
         return JNI_FALSE;
     }
     load_file_symtab();
+    char bias[32];
+    snprintf(bias, sizeof(bias), "0x%llx",
+             static_cast<unsigned long long>(g_file_symtab.load_bias));
+    log_to_cache(env, cache_dir, "symtab symbols available: " +
+        std::to_string(g_file_symtab.symbol_count) + " load_bias=" + bias);
 
     lsplant::InitInfo info{
         .inline_hooker = hook_function,
@@ -174,6 +205,9 @@ Java_dev_khoirevanced_runtime_agent_NativeHookBackend_nativeInitialize(
     g_initialized = lsplant::Init(env, info);
     __android_log_print(g_initialized ? ANDROID_LOG_INFO : ANDROID_LOG_ERROR, kTag,
                         "LSPlant initialization %s", g_initialized ? "succeeded" : "failed");
+    log_to_cache(env, cache_dir, g_initialized
+        ? "lsplant::Init succeeded"
+        : "FAIL: lsplant::Init returned false");
     return g_initialized ? JNI_TRUE : JNI_FALSE;
 }
 

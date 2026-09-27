@@ -216,7 +216,7 @@ int main(int argc, char** argv) {
     }
 
     const size_t path_size = strlen(resolved) + 1;
-    const size_t allocation_size = (path_size + 4095u) & ~4095u;
+    const size_t allocation_size = (path_size + PATH_MAX + 4095u) & ~4095u;
     std::array<uintptr_t, 8> mmap_args{
         0, allocation_size, PROT_READ | PROT_WRITE,
         MAP_PRIVATE | MAP_ANONYMOUS, static_cast<uintptr_t>(-1), 0, 0, 0};
@@ -225,21 +225,67 @@ int main(int argc, char** argv) {
         fprintf(stderr, "remote mmap failed\n");
         return 68;
     }
-    if (!write_remote(pid, *remote_buffer, resolved, path_size)) {
-        fprintf(stderr, "remote path write failed: %s\n", strerror(errno));
-        return 69;
-    }
 
-    std::array<uintptr_t, 8> dlopen_args{*remote_buffer, RTLD_NOW | RTLD_GLOBAL, 0, 0, 0, 0, 0, 0};
-    auto handle = remote_call(pid, *remote_dlopen, dlopen_args);
-    if (!handle || *handle == 0) {
+    // Load one library into the target by absolute path. The path is written
+    // into the remote buffer, which is reused for each call; the target's
+    // dlopen copies what it needs, so overwriting between calls is safe.
+    auto load_in_target = [&](const char* path) -> bool {
+        if (!write_remote(pid, *remote_buffer, path, strlen(path) + 1)) {
+            fprintf(stderr, "remote path write failed: %s\n", strerror(errno));
+            return false;
+        }
+        std::array<uintptr_t, 8> dlopen_args{
+            *remote_buffer, RTLD_NOW | RTLD_GLOBAL, 0, 0, 0, 0, 0, 0};
+        auto handle = remote_call(pid, *remote_dlopen, dlopen_args);
+        if (handle && *handle != 0) {
+            return true;
+        }
         const std::array<uintptr_t, 8> no_arguments{};
         const auto remote_error = remote_call(pid, *remote_dlerror, no_arguments);
         const std::string detail = remote_error && *remote_error != 0
             ? read_remote_c_string(pid, *remote_error) : "<dlerror unavailable>";
         fprintf(stderr, "remote dlopen returned null: %s\n", detail.c_str());
+        return false;
+    };
+
+    // The agent is linked against liblsplant.so, which inject.sh places in the
+    // same directory. Because the agent is dlopen'ed by absolute path from the
+    // target's own linker namespace, the linker has to satisfy that DT_NEEDED
+    // from a namespace whose search path does not include the payload
+    // directory, and the load fails with:
+    //
+    //   remote dlopen returned null: dlopen failed: library "liblsplant.so"
+    //   not found: needed by .../libkhoirevanced_agent.so in namespace clns-9
+    //
+    // Load the dependency into the same namespace first. The linker then
+    // resolves the agent's DT_NEEDED against what it has already loaded, so no
+    // search path has to be widened.
+    //
+    // This is done here rather than with a DT_RUNPATH of $ORIGIN on the agent
+    // because CMake escapes '$' when it writes the link line, emitting
+    // `-rpath=$$$$ORIGIN`, which the NDK toolchain then reduces to a literal
+    // `$$ORIGIN` in DT_RUNPATH. Preloading sidesteps the build system.
+    const char* const last_slash = strrchr(resolved, '/');
+    if (last_slash != nullptr) {
+        const size_t dir_length = static_cast<size_t>(last_slash - resolved);
+        char dependency[PATH_MAX]{};
+        const int written = snprintf(dependency, sizeof(dependency), "%.*s/liblsplant.so",
+                                     static_cast<int>(dir_length), resolved);
+        if (written > 0 && static_cast<size_t>(written) < sizeof(dependency)) {
+            if (load_in_target(dependency)) {
+                printf("preloaded %s\n", dependency);
+            } else {
+                // Not fatal on its own: if the agent's DT_NEEDED can still be
+                // satisfied, the next load succeeds. Report and carry on so the
+                // agent load produces the authoritative error.
+                fprintf(stderr, "could not preload %s, continuing\n", dependency);
+            }
+        }
+    }
+
+    if (!load_in_target(resolved)) {
         return 70;
     }
-    printf("injected %s into pid %d (handle=0x%lx)\n", resolved, pid, *handle);
+    printf("injected %s into pid %d\n", resolved, pid);
     return 0;
 }
