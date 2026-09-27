@@ -56,9 +56,25 @@ fun MethodMatcher.opcodes(opcodes: Collection<Opcode>): OpCodesMatcher {
     }
 }
 
+/**
+ * Apply this project's [AccessFlags] to a DexKit [MethodMatcher].
+ *
+ * These must go to DexKit's **accessFlags** matcher, not `modifiers`. The two
+ * are different bit fields: modifiers cover the low 16 bits (visibility,
+ * static, abstract, ...) while `AccessFlags.CONSTRUCTOR` is 0x10000, which lives
+ * in access_flags. Passing 0x10000 to `modifiers()` asks for a modifier bit
+ * that cannot exist, so every constructor-based fingerprint silently matched
+ * nothing.
+ *
+ * That is not hypothetical: on YouTube 21.38.130, `ToolbarLayoutFingerprint`,
+ * `CreatePivotBarFingerprint` and `BuildClientContextBodyConstructorFingerprint`
+ * are all constructor-based, and all three reported zero matches even though
+ * the raw query `accessFlags(0x10000) + usingNumbers(<toolbar_container id>)`
+ * finds the constructor.
+ */
 fun MethodMatcher.accessFlags(vararg accessFlags: AccessFlags) {
-    val modifiers = accessFlags.map { it.modifier }.reduce { acc, next -> acc or next }
-    if (modifiers != 0) this.modifiers(modifiers)
+    val bits = accessFlags.map { it.modifier }.reduce { acc, next -> acc or next }
+    if (bits != 0) this.accessFlags(bits)
     if (accessFlags.contains(AccessFlags.CONSTRUCTOR)) {
         if (accessFlags.contains(AccessFlags.STATIC)) this.name = "<clinit>"
         else this.name = "<init>"

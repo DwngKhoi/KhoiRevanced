@@ -237,3 +237,19 @@ Copy-Item D:\path\to\com.google.android.youtube-21.36.42.apk app\binaries\
 
 The runtime modules have their own fixture-free unit tests
 (`:runtime-api:test`, `:runtime-agent:test`) and always run.
+
+### Verified state against YouTube 21.38.130
+
+`PlayerOverlayContainerFingerprint` is the one known failure: the query matches
+both `Ljnb;->a()` and `Lodw;->a()`, so the single-result assertion trips. It
+feeds the Swipe controls patch, which is listed in
+`PatchExecutor.directRuntimeDisabledPatches` and is never applied on the
+standalone runtime, so it has no effect here. Disambiguating it is left to
+upstream rather than guessed at, since the patch is disabled anyway and a
+wrong discriminator would be worse than an honest failure. Every other package
+passes, including the ones the navigation bar and hide-ads patches depend on.
+
+Note that the test's resource-id resolution was verified against `aapt2`:
+`id/toolbar_container` resolves to `0x7f0b171f` through both Jadx and aapt2, so
+a zero-match report from this test reflects a genuinely stale fingerprint rather
+than a harness artefact.
