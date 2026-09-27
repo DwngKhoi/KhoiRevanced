@@ -49,7 +49,55 @@ constructors.
 
 Because a missing type here is a `NoClassDefFoundError` on device and nothing in
 a host build notices, `tools/package-runtime.ps1` asserts after `d8` that the
-agent dex actually defines the three types that gate payload loading.
+agent dex actually defines the types that gate payload loading.
+
+## What upstream gets from LSPosed, and this project has to own
+
+This is the single most important difference from upstream NexAlloy, and it is
+easy to miss because upstream's build files look almost identical.
+
+Upstream compiles against `de.robv.android.xposed:api:82`. That artifact is a
+**stub**: every method body is `throw new RuntimeException("Stub!")`. LSPosed
+replaces those classes at runtime with a real implementation. So upstream is
+genuinely an LSPosed module, and anything the official `XposedHelpers` does is
+available to it for free.
+
+KhoiRevanced has no LSPosed, so every behaviour it relies on has to be
+supplied locally. Concretely:
+
+| Concern | Upstream NexAlloy | KhoiRevanced |
+| --- | --- | --- |
+| `de.robv.android.xposed.*` at runtime | injected by LSPosed | Pine's `pine-xposed.jar` |
+| `hookMethod` implementation | LSPosed's engine | LSPlant + Dobby, via `XposedBridge.setHookProvider` |
+| `static final` field writes | LSPosed's `XposedHelpers` | `runtime-api`'s `StaticFields` |
+
+The third row is the concrete instance of the pattern. Upstream commit
+`97e14d5` ("Remove legacy Xposed compatibility shims") deleted its own 1842-line
+`XposedHelpers` and switched to the official API explicitly to obtain "the
+Xposed Framework's Android 17 static final unmodifiable field workaround". Pine's
+copy predates that change — it has no `sun.misc.Unsafe` reference — so on
+Android 14+ a `static final` write such as
+`SpoofFeaturesPatch` performing `Build.BRAND = "google"` degrades to a plain
+reflective write that ART rejects.
+
+`runtime-api`'s `StaticFields` therefore implements the fallback chain itself:
+direct reflective write, then clearing `Field.modifiers`' FINAL bit, then a
+`sun.misc.Unsafe` write at the field's memory offset. The payload reaches it via
+`compileOnly(project(":runtime-api"))`, which is why the classes must be present
+in the agent dex.
+
+Note that only the first two fallbacks are exercisable on a desktop JVM:
+HotSpot filters `Field.modifiers` out of reflection from JDK 12 and rejects
+static fields in `Unsafe.objectFieldOffset` entirely. ART keeps
+`objectFieldOffset` working for statics, so the Unsafe path is Android-specific
+and has not been verified on a device. `StaticFieldsTest` therefore pins the
+contract (write succeeds, or fail with a clear `IllegalAccessException`) rather
+than asserting success for `static final` on the host.
+
+The same "own it or lose it" rule applies to anything else the payload reaches
+for through the Xposed API. When adding a patch that uses an Xposed helper,
+check whether Pine's copy actually implements the behaviour, because upstream
+would have received the real thing.
 
 ## Hooking model
 

@@ -59,6 +59,13 @@ in step with the submodule: when upstream renames or removes an extension entry
 point, the corresponding reference in `app/` has to be migrated too, otherwise
 `:nexalloy-payload` stops compiling.
 
+Upstream NexAlloy is an LSPosed module: it compiles against
+`de.robv.android.xposed:api:82`, which is a stub whose methods all throw, and
+relies on LSPosed to supply the real implementation at runtime. This project
+has no LSPosed, so the Xposed API surface it needs is supplied locally and any
+behaviour beyond "call the hook engine" has to be implemented in
+`runtime-api`. See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md#what-upstream-gets-from-lsposed-and-this-project-has-to-own).
+
 ## Build
 
 Requirements:

@@ -160,11 +160,21 @@ dependencies {
     // The standalone runtime ships Pine's Xposed-compat API. Compile the
     // payload against the exact same API jar instead of resolving
     // de.robv.android.xposed:api from the retired remote repository.
+    //
+    // Note that the official artifact is a stub whose every method body is
+    // `throw new RuntimeException("Stub!")`; LSPosed injects the real
+    // implementation at runtime. That is precisely why the payload must not
+    // depend on it for behaviour the runtime has to own itself.
     compileOnly(files("../third_party/pine-libs/pine-xposed.jar"))
     compileOnly(libs.libxposed.api)
     implementation(libs.libxposed.service)
 //    implementation(project(":extensions"))
     compileOnly(project(":stub"))
+    // KhoiRevanced's own runtime contract. compileOnly because these classes
+    // are dexed into the agent's classes.dex, which is the parent class loader
+    // the payload's DexClassLoader resolves them against; shipping them inside
+    // the dexpack as well would duplicate the types.
+    compileOnly(project(":runtime-api"))
     implementation(libs.androidx.javascriptengine)
     implementation(libs.protobuf.javalite)
     implementation(libs.collections4)

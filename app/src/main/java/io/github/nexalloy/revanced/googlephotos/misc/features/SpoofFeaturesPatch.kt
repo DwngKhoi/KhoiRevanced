@@ -2,7 +2,7 @@ package io.github.nexalloy.revanced.googlephotos.misc.features
 
 import android.os.Build
 import de.robv.android.xposed.XC_MethodHook
-import de.robv.android.xposed.XposedHelpers
+import dev.khoirevanced.runtime.api.StaticFields
 import io.github.nexalloy.patch
 import org.luckypray.dexkit.wrap.DexMethod
 
@@ -21,7 +21,11 @@ val SpoofFeaturesPatch = patch(
 
     val buildClazz = Build::class.java
     for ((k, v) in buildInfo) {
-        XposedHelpers.setStaticObjectField(buildClazz, k, v)
+        // Every android.os.Build identity field is a `public static final String`,
+        // i.e. precisely the shape that plain reflection can no longer write on
+        // Android 14+. StaticFields owns that fallback for the standalone
+        // runtime; Pine's XposedHelpers does not provide it.
+        StaticFields.setStaticObjectField(buildClazz, k, v)
     }
 
     val featuresToEnable = setOf(

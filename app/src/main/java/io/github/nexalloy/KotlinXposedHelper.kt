@@ -18,12 +18,16 @@ import de.robv.android.xposed.XposedHelpers.getLongField
 import de.robv.android.xposed.XposedHelpers.getObjectField
 import de.robv.android.xposed.XposedHelpers.getStaticObjectField
 import de.robv.android.xposed.XposedHelpers.newInstance
-import de.robv.android.xposed.XposedHelpers.setBooleanField
 import de.robv.android.xposed.XposedHelpers.setFloatField
-import de.robv.android.xposed.XposedHelpers.setIntField
-import de.robv.android.xposed.XposedHelpers.setLongField
-import de.robv.android.xposed.XposedHelpers.setObjectField
-import de.robv.android.xposed.XposedHelpers.setStaticObjectField
+// Field *writes* go through KhoiRevanced's own StaticFields rather than Pine's
+// XposedHelpers. Upstream NexAlloy relies on LSPosed to supply the Android 17
+// `static final` workaround, which is unavailable to a standalone runtime, and
+// Pine's copy predates it. Reads stay on Pine: reflection reads are unaffected.
+import dev.khoirevanced.runtime.api.StaticFields.setBooleanField
+import dev.khoirevanced.runtime.api.StaticFields.setIntField
+import dev.khoirevanced.runtime.api.StaticFields.setLongField
+import dev.khoirevanced.runtime.api.StaticFields.setObjectField
+import dev.khoirevanced.runtime.api.StaticFields.setStaticObjectField
 import java.lang.reflect.Field
 import java.lang.reflect.Member
 import java.lang.reflect.Modifier

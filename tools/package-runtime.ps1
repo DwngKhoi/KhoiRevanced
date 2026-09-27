@@ -172,7 +172,13 @@ $dexText = [System.Text.Encoding]::ASCII.GetString($dexBytes)
 $requiredTypes = @(
     'Lde/robv/android/xposed/XposedBridge;',
     'Lde/robv/android/xposed/XC_MethodHook;',
-    'Lio/github/libxposed/api/XposedModule;'
+    'Lio/github/libxposed/api/XposedModule;',
+    # The payload calls into KhoiRevanced's own runtime contract, which lives in
+    # this dex because it is the parent class loader the payload resolves
+    # against. StaticFields in particular carries the `static final` write
+    # fallback that upstream NexAlloy gets from LSPosed.
+    'Ldev/khoirevanced/runtime/api/StaticFields;',
+    'Ldev/khoirevanced/runtime/api/HookBackend;'
 )
 $absentTypes = @($requiredTypes | Where-Object { $dexText.IndexOf($_, [StringComparison]::Ordinal) -lt 0 })
 if ($absentTypes.Count -gt 0) {
