@@ -161,6 +161,19 @@ class PatchExecutor(
     private lateinit var patches: Array<Patch>
     private val appliedPatches = mutableSetOf<Patch>()
     private val failedPatches = mutableListOf<Patch>()
+
+    /**
+     * Names of the patches that could not be applied, in the order they ran.
+     *
+     * A single unmatchable fingerprint must not take the whole process down:
+     * every patch that did match is already hooked by the time this list is
+     * read. Upstream behaves the same way — it logs a toast and keeps going,
+     * ignoring the return value of [applyPatches]. The standalone runtime needs
+     * this list to report the same outcome instead of declaring a total failure.
+     */
+    val failedPatchNames: List<String>
+        get() = failedPatches.map { it.name }
+
     // Pine's direct ART bridge cannot safely hook the swipe host's
     // dispatchTouchEvent chain on Android 16. Keep every other upstream patch
     // active while this one is adapted to the direct runtime.

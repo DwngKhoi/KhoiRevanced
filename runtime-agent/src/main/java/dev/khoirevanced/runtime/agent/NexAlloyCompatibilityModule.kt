@@ -25,6 +25,21 @@ object NexAlloyCompatibilityModule {
     var status: String = "not-requested"
         private set
 
+    /**
+     * Names of the patches that were enabled but whose fingerprints did not
+     * match this host build.
+     *
+     * A non-empty list is expected on a host version newer than the one the
+     * patch set was written against, and is exactly the situation in which the
+     * LSPosed build also shows a warning toast while every other patch keeps
+     * working. It is reported through the status file rather than treated as a
+     * bootstrap failure, so `inject.sh` still reports ready and the user can
+     * see precisely which features are unavailable.
+     */
+    @Volatile
+    var failedPatches: List<String> = emptyList()
+        private set
+
     fun load(application: Application, config: RuntimeConfig) {
         val modulePath = config.modulePath ?: return
         // System properties and their monitor are shared across class loaders.
@@ -86,8 +101,28 @@ object NexAlloyCompatibilityModule {
             }
             System.setProperty("khoirevanced.direct-runtime", "true")
             (entry as IXposedHookLoadPackage).handleLoadPackage(loadParam)
-            check(System.getProperty("khoirevanced.nexalloy.state") == "patches-applied") {
-                "NexAlloy callback did not complete its patch executor"
+
+            // Only a missing state means the callback never reached the patch
+            // executor, which is a genuine failure of the runtime.
+            //
+            // Individual patches that failed to fingerprint are NOT a failure
+            // here. `runCatching` inside PatchExecutor has already hooked every
+            // patch that did match, and upstream NexAlloy ignores the executor's
+            // return value and merely toasts the failed names. Failing the whole
+            // bootstrap on a partial result would discard working patches and
+            // report "not ready" for a process that is in fact patched. So record
+            // the failures for diagnostics and carry on, exactly as the Xposed
+            // deployment does.
+            val state = System.getProperty("khoirevanced.nexalloy.state")
+            check(state == "patches-applied") {
+                "NexAlloy callback did not complete its patch executor (state=$state)"
+            }
+            val failed = System.getProperty("khoirevanced.nexalloy.failed").orEmpty()
+                .split(',')
+                .filter { it.isNotBlank() }
+            failedPatches = failed
+            if (failed.isNotEmpty()) {
+                Log.w(TAG, "Patches that did not apply: ${failed.joinToString(", ")}")
             }
         }.onSuccess {
             System.setProperty(LOAD_STATE_PROPERTY, "loaded")

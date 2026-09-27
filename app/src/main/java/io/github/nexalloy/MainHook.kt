@@ -75,12 +75,24 @@ class MainHook : XposedModule(), IXposedHookLoadPackage, IXposedHookZygoteInit {
             }
 
             val patches = patchesByPackage[param.packageName] ?: return@inContext
-            val patchesApplied = PatchExecutor(app, param, this).applyPatches(patches)
-            // Direct-runtime health probe. This is process-local and is read
-            // by KhoiRevanced after Pine dispatches the upstream callback.
+            val executor = PatchExecutor(app, param, this)
+            executor.applyPatches(patches)
+
+            // Direct-runtime health probe. Process-local, read by
+            // KhoiRevanced once the upstream callback has been dispatched.
+            //
+            // Reaching this point at all means the patch executor ran to
+            // completion, which is what the runtime actually needs. Individual
+            // patch failures are NOT fatal: `runCatching` has already hooked
+            // everything that did match, and upstream deliberately ignores the
+            // return value of applyPatches and just toasts the failures. Treating
+            // a partial failure as a total one is what previously made the whole
+            // injection report "not ready" while 22 of 24 patches were live.
+            // The failed names are reported separately for diagnostics.
+            System.setProperty("khoirevanced.nexalloy.state", "patches-applied")
             System.setProperty(
-                "khoirevanced.nexalloy.state",
-                if (patchesApplied) "patches-applied" else "patches-failed"
+                "khoirevanced.nexalloy.failed",
+                executor.failedPatchNames.joinToString(",")
             )
         }
     }

@@ -45,7 +45,9 @@ object AgentBootstrap {
                 parsed,
                 state = "ready",
                 detail = "engine=lsplant; module=${NexAlloyCompatibilityModule.status}; " +
-                    "capabilities=${NativeHookBackend.capabilities.joinToString()}",
+                    "capabilities=${NativeHookBackend.capabilities.joinToString()}; " +
+                    "failedPatches=${NexAlloyCompatibilityModule.failedPatches
+                        .ifEmpty { listOf("none") }.joinToString(",")}",
             )
             Log.i(TAG, "Runtime attached to ${app.packageName}; profile=${parsed.profile}")
         }.onFailure { error ->
