@@ -22,6 +22,17 @@ object NexAlloyCompatibilityModule {
     private const val TAG = "KhoiRevanced"
     private const val LOAD_STATE_PROPERTY = "khoirevanced.nexalloy.load-state"
 
+    /**
+     * The one package that is known to have to resolve to the payload's copy.
+     *
+     * The payload's generated Innertube messages are compiled against its own
+     * protobuf-lite, and the host ships an older one, so a parent-first loader
+     * mixes the two generations on a single class. [RuntimeLog]'s `class-overlap`
+     * stage reports the full measured overlap; this constant only says which part
+     * of it is a defect rather than a duplication.
+     */
+    private const val PROTOBUF_PACKAGE = "com.google.protobuf"
+
     @Volatile
     var status: String = "not-requested"
         private set
@@ -79,11 +90,86 @@ object NexAlloyCompatibilityModule {
             }
             val dexPath = dexFiles.joinToString(File.pathSeparator) { it.absolutePath }
             Log.i(TAG, "Loading NexAlloy payload: dexCount=${dexFiles.size} dexPath=$dexPath")
-            val loader = DexClassLoader(
+            // Which packages does the payload and the host both define? Measured
+            // rather than assumed, because the answer is a property of the host
+            // build and the whole point of it is to stop chasing one visible
+            // symptom per shadowed class.
+            val payloadClasses = dexFiles.flatMapTo(mutableSetOf()) { DexClassNames.of(it) }
+            // Measured against the host application's own loader, not this agent's.
+            // The agent's classes.dex is loaded into a child of it, so a lookup
+            // there reports only what the boot class path provides -- 120 packages,
+            // all of them `android.*` -- and misses everything the host's APK
+            // defines, which is exactly the set in question.
+            val hostLoader = application.classLoader
+                ?: Class.forName("android.app.ActivityThread")
+                    .getMethod("currentApplication").invoke(null)
+                    ?.javaClass?.classLoader
+                ?: error("host class loader is unavailable")
+            val shadowed = payloadClasses
+                .filter { candidate ->
+                    runCatching {
+                        Class.forName(candidate, false, hostLoader)
+                        true
+                    }.getOrDefault(false)
+                }
+                .map { DexClassNames.packagePrefix("L${it.replace('.', '/')};") }
+                .filter { it.isNotEmpty() }
+                .groupingBy { it }
+                .eachCount()
+            RuntimeLog.stage(
+                "class-overlap",
+                "payloadClasses=${payloadClasses.size} shadowedPackages=${shadowed.size} " +
+                    shadowed.entries
+                        .sortedByDescending { it.value }
+                        .take(12)
+                        .joinToString(", ") { "${it.key}(${it.value})" },
+            )
+            // Three numbers that distinguish the three possible reasons for a
+            // package not showing up as shadowed: the payload does not define it,
+            // the wrong loader was used for the lookup, or the host does not have
+            // it. Stated separately because the first two are our bugs and the
+            // third is a fact about the host.
+            val payloadDefinesProtobuf = payloadClasses.any { it.startsWith("$PROTOBUF_PACKAGE.") }
+            fun resolves(loader: ClassLoader, name: String): Boolean = runCatching {
+                Class.forName(name, false, loader)
+                true
+            }.getOrDefault(false)
+            RuntimeLog.stage(
+                "class-probe",
+                "payloadDefinesProtobuf=$payloadDefinesProtobuf " +
+                    "hostResolvesGeneratedMessageLite=" +
+                    resolves(hostLoader, "$PROTOBUF_PACKAGE.GeneratedMessageLite") +
+                    " hostResolvesExtensionRegistryLite=" +
+                    resolves(hostLoader, "$PROTOBUF_PACKAGE.ExtensionRegistryLite") +
+                    " hostResolvesMainActivity=" +
+                    resolves(hostLoader, "com.google.android.apps.youtube.app.watchwhile.MainActivity"),
+            )
+            // Only the packages that must be self-consistent inside the payload
+            // are made parent-last. Everything else stays parent-first, because the
+            // payload relies on the host for large parts of the framework.
+            val parentLast = shadowed.keys.filter { it.startsWith(PROTOBUF_PACKAGE) }
+            if (parentLast.isNotEmpty()) {
+                RuntimeLog.stage(
+                    "class-precedence",
+                    "parentLast=${parentLast.joinToString(",")} " +
+                        "so the payload's own messages and generated types are the same generation",
+                )
+            } else {
+                RuntimeLog.warn(
+                    "class-precedence",
+                    "$PROTOBUF_PACKAGE was not measured as shadowed; the payload's messages " +
+                        "will be parsed with whatever protobuf-lite the host resolves first",
+                )
+            }
+            val loader = PayloadClassLoader(
                 dexPath,
                 optimizedDir.absolutePath,
                 nativeDir,
-                javaClass.classLoader,
+                // The agent's own loader stays the parent, so the payload can see
+                // the Xposed compatibility classes it is written against; the host's
+                // classes are reachable through it.
+                javaClass.classLoader ?: hostLoader,
+                parentLast,
             )
             val entry = loader.loadClass("io.github.nexalloy.MainHook")
                 .getDeclaredConstructor().newInstance()

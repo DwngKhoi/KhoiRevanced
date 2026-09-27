@@ -23,6 +23,9 @@ object AgentBootstrap {
             // through this DexClassLoader too, so ART associates JNI methods
             // with the payload's class loader.
             System.load(parsed.agentPath)
+            // The native half of invokeSpecial lives in this library, so the
+            // super-call path is only usable once it is loaded.
+            ArtInvoke.markLoaded()
             RuntimeLog.stage("agent-library-loaded")
             RuntimeDiagnostics.stage(parsed, "agent-library-loaded")
             // PineRuntime starts the engine and installs the backend; this

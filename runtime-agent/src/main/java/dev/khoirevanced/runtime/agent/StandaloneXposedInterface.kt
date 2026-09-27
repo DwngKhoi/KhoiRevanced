@@ -171,18 +171,37 @@ object StandaloneXposedInterface : XposedInterface {
          * Reflection alone cannot do this. `Method.invoke` performs virtual
          * dispatch, so invoking the superclass's `onCreate` on a LicenseActivity
          * calls `LicenseActivity.onCreate` -- the very method this patch replaced
-         * -- which re-enters the hook and recurses until the stack overflows.
-         * That is exactly what happened before this was fixed.
+         * -- which either recurses until the stack overflows, or, once a
+         * re-entrancy guard is in place, runs the replaced method's own body
+         * against state the caller has already consumed. That second form is what
+         * this hit on the target device, and it is the more misleading of the
+         * two: the crash reads as a bug in the host rather than as a broken
+         * super call.
          *
-         * `unreflectSpecial` is the supported way to bypass that dispatch, but
-         * obtaining it requires a `Lookup` with privileges over the declaring
-         * class, and `privateLookupIn` is refused for framework classes on
-         * Android. `MethodHandles.Lookup.IMPL_LOOKUP` has those privileges, so
-         * it is read out through `sun.misc.Unsafe` the same way StaticFields
-         * already does for static final writes.
+         * Three ways to bypass dispatch were available and only one works here.
+         *
+         * `MethodHandles.Lookup.unreflectSpecial` needs `IMPL_LOOKUP`, which this
+         * process cannot obtain: the hidden-API policy is enforced, and Pine
+         * cannot lift it on this device because all six ART symbols it hooks for
+         * that purpose are absent from the build's `libart.so` `.dynsym`. See
+         * [privilegedLookup] for the evidence.
+         *
+         * Calling ART's `ArtMethod::Invoke` with a direct invoke type would work,
+         * at the cost of depending on internal struct layouts that differ per
+         * Android version.
+         *
+         * `JNIEnv`'s `CallNonvirtual` family exists to mean exactly this, so
+         * [ArtInvoke] uses it. It is tried first; the `IMPL_LOOKUP` handle is kept
+         * as a second choice because a runtime that does allow the field is
+         * better served by a Java-level call, and the guarded virtual call is kept
+         * last so that a runtime with none of the above degrades rather than
+         * failing inside an Activity's `onCreate`.
          */
         override fun invokeSpecial(receiver: Any, vararg args: Any?): Any? {
             val target = resolveSuperMethod(method, receiver) ?: method
+            if (ArtInvoke.available) {
+                return ArtInvoke.invokeSpecial(receiver, target, args)
+            }
             val special = specialInvoker(target, receiver)
             if (special != null) {
                 target.isAccessible = true
@@ -194,7 +213,7 @@ object StandaloneXposedInterface : XposedInterface {
             if (!Reentrancy.enter(target)) {
                 throw IllegalStateException(
                     "Re-entered super call for ${target.declaringClass?.name}.${target.name} " +
-                        "and no privileged Lookup is available to bypass dispatch",
+                        "and no way to bypass dispatch is available on this runtime",
                 )
             }
             try {

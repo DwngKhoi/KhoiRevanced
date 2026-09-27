@@ -6,7 +6,11 @@ project(khoirevanced_runtime LANGUAGES C CXX)
 # third_party/pine-libs and installs the hook backend. libpine.so is not linked
 # here: it is dlopened by Pine itself through PineConfig.libLoader, which is what
 # lets its JNI_OnLoad resolve top/canyie/pine/Pine from the agent's class loader.
-add_library(khoirevanced_agent SHARED agent.cpp)
+add_library(khoirevanced_agent SHARED
+    agent.cpp
+    # invokeSpecial via JNIEnv's CallNonvirtual family; see art_invoke.cpp.
+    art_invoke.cpp
+)
 
 target_compile_definitions(khoirevanced_agent PRIVATE
     KHOIREVANCED_VERSION="0.1.0-dev"
